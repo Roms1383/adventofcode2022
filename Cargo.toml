@@ -7,6 +7,10 @@ edition = "2021"
 name = "day-3-1"
 path = "src/day.3.1.rs"
 
+[[bin]]
+name = "day-3-2"
+path = "src/day.3.2.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
