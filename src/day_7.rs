@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 
 use std::{
-    borrow::BorrowMut,
-    cell::{Ref, RefCell, RefMut},
+    cell::{Ref, RefCell},
     ops::Deref,
     rc::Rc,
 };
@@ -16,7 +15,7 @@ pub struct File {
 #[derive(Debug, Clone)]
 pub struct Folder {
     children: Vec<Rc<Resource>>,
-    parent: Option<Rc<Folder>>,
+    parent: Option<Rc<RefCell<Folder>>>,
     path: String,
 }
 
@@ -24,11 +23,25 @@ impl Folder {
     fn touch(&mut self, file: &File) {
         self.children.push(Rc::new(Resource::File(file.clone())));
     }
+    fn mkdir(&mut self, folder: &Folder) {
+        self.children
+            .push(Rc::new(Resource::Folder(folder.clone())));
+    }
 }
 
+#[derive(Debug)]
 pub struct FileSystem {
     tree: Vec<Rc<RefCell<Folder>>>,
     current: Option<usize>,
+}
+
+impl Default for FileSystem {
+    fn default() -> Self {
+        Self {
+            tree: vec![],
+            current: None,
+        }
+    }
 }
 
 impl FileSystem {
@@ -41,10 +54,12 @@ impl FileSystem {
     fn retrieve(&self, idx: usize) -> Ref<Folder> {
         self.tree.get(idx).unwrap().borrow()
     }
-    fn goto(&mut self, cmd: &Command) {
+    fn execute(&mut self, cmd: &Command) {
         match cmd {
             Command::Root => {
-                self.current = Some(self.find("/"));
+                if self.tree.len() > 0 {
+                    self.current = Some(0);
+                }
             }
             Command::Back => {
                 if let Some(ref current) = self.current {
@@ -52,7 +67,7 @@ impl FileSystem {
                     let parent = current.parent.clone();
                     drop(current);
                     if let Some(parent) = parent {
-                        let idx = self.find(parent.path.as_str());
+                        let idx = self.find(parent.borrow().path.as_str());
                         self.current = Some(idx);
                     }
                 }
@@ -68,7 +83,7 @@ impl FileSystem {
         for line in stdout.0.iter() {
             match line {
                 StdOutLine::Cmd(cmd) => {
-                    self.goto(cmd);
+                    self.execute(cmd);
                 }
                 StdOutLine::Output(resource) => match resource {
                     Resource::File(file) => {
@@ -77,7 +92,28 @@ impl FileSystem {
                         let mut guard = folder.borrow_mut();
                         guard.touch(file);
                     }
-                    Resource::Folder(_) => todo!(),
+                    Resource::Folder(child) => {
+                        if self.tree.len() > 0 {
+                            let idx = self.current.unwrap();
+                            let initial = self.tree.get(idx).unwrap();
+                            let folder = &**initial;
+                            let mut guard = folder.borrow_mut();
+                            let child = Folder {
+                                children: vec![],
+                                parent: Some(Rc::clone(initial)),
+                                path: child.path.clone(),
+                            };
+                            guard.mkdir(&child);
+                        } else {
+                            let root = Folder {
+                                children: vec![],
+                                parent: None,
+                                path: child.path.clone(),
+                            };
+                            self.tree.push(Rc::new(RefCell::new(root)));
+                            self.current = Some(0);
+                        }
+                    }
                 },
             };
         }
@@ -194,7 +230,7 @@ impl From<&str> for Command {
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, File, Folder, StdOut};
+    use super::{Command, File, FileSystem, Folder, StdOut};
 
     const INPUT: &'static str = "$ cd /
 $ ls
@@ -250,7 +286,11 @@ $ ls
 
     #[test]
     fn sample() {
-        println!("{:#?}", StdOut::from(INPUT));
+        let stdout = StdOut::from(INPUT);
+        println!("{stdout:#?}");
+        let mut fs = FileSystem::default();
+        fs.populate(&stdout);
+        println!("{fs:#?}");
         assert!(false);
     }
 }
