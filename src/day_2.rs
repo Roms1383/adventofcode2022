@@ -5,11 +5,22 @@ pub enum Side {
     Opponent,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Game {
     Rock,
     Paper,
     Scissors,
+}
+
+impl Game {
+    fn guess(&self) -> Outcome {
+        match self.code(Side::Opponent) {
+            'X' => Outcome::Lose,
+            'Y' => Outcome::Draw,
+            'Z' => Outcome::Win,
+            _ => panic!("invalid code"),
+        }
+    }
 }
 
 pub trait Code {
@@ -59,6 +70,40 @@ fn outcome(round: &Round) -> Outcome {
         | (Game::Scissors, Game::Paper)
         | (Game::Rock, Game::Scissors) => Outcome::Win,
         _ => Outcome::Draw,
+    }
+}
+
+fn cheat(round: &Round) -> Round {
+    match (&round.myself.guess(), &round.opponent) {
+        (Outcome::Lose, Game::Rock) => Round {
+            myself: Game::Scissors,
+            opponent: round.opponent.clone(),
+        },
+        (Outcome::Lose, Game::Paper) => Round {
+            myself: Game::Rock,
+            opponent: round.opponent.clone(),
+        },
+        (Outcome::Lose, Game::Scissors) => Round {
+            myself: Game::Paper,
+            opponent: round.opponent.clone(),
+        },
+        (Outcome::Win, Game::Rock) => Round {
+            myself: Game::Paper,
+            opponent: round.opponent.clone(),
+        },
+        (Outcome::Win, Game::Paper) => Round {
+            myself: Game::Scissors,
+            opponent: round.opponent.clone(),
+        },
+        (Outcome::Win, Game::Scissors) => Round {
+            myself: Game::Rock,
+            opponent: round.opponent.clone(),
+        },
+        // draw
+        _ => Round {
+            myself: round.opponent.clone(),
+            opponent: round.opponent.clone(),
+        },
     }
 }
 
@@ -131,6 +176,16 @@ impl Score for Strategy {
     }
 }
 
+impl Strategy {
+    pub fn cheat(&self) -> Strategy {
+        let mut strategy = vec![];
+        for round in &self.0 {
+            strategy.push(cheat(round));
+        }
+        Strategy(strategy)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::day_2::{outcome, Outcome, Score};
@@ -153,5 +208,24 @@ mod tests {
         assert_eq!(outcome(strategy.0.get(1).unwrap()), Outcome::Lose);
         assert_eq!(outcome(strategy.0.get(2).unwrap()), Outcome::Draw);
         assert_eq!(strategy.score(), 15);
+    }
+
+    #[test]
+    fn cheat() {
+        let s = "A Y
+      B X
+      C Z";
+        let strategy = Strategy::from(s);
+        let strategy = strategy.cheat();
+        assert_eq!(strategy.0.get(0).unwrap().opponent, Game::Rock);
+        assert_eq!(strategy.0.get(0).unwrap().myself, Game::Rock);
+        assert_eq!(strategy.0.get(1).unwrap().opponent, Game::Paper);
+        assert_eq!(strategy.0.get(1).unwrap().myself, Game::Rock);
+        assert_eq!(strategy.0.get(2).unwrap().opponent, Game::Scissors);
+        assert_eq!(strategy.0.get(2).unwrap().myself, Game::Rock);
+        assert_eq!(outcome(strategy.0.get(0).unwrap()), Outcome::Draw);
+        assert_eq!(outcome(strategy.0.get(1).unwrap()), Outcome::Lose);
+        assert_eq!(outcome(strategy.0.get(2).unwrap()), Outcome::Win);
+        assert_eq!(strategy.score(), 12);
     }
 }
