@@ -1,9 +1,9 @@
-use std::ops::Index;
-
 use regex::Regex;
 
+#[derive(Debug, Clone)]
 pub struct Crate(char);
 
+#[derive(Debug, Clone)]
 pub struct Stack(Vec<Option<Crate>>);
 
 pub struct Move {
@@ -101,6 +101,53 @@ impl From<&str> for Stacks {
             index += 4;
         }
         Stacks::from(stacks)
+    }
+}
+
+impl Stack {
+    fn get_top_crate(&self) -> Option<usize> {
+        for (idx, item) in self.0.iter().enumerate() {
+            if item.is_some() {
+                return Some(idx);
+            }
+        }
+        None
+    }
+    fn get_bottom_crate(&self) -> Option<usize> {
+        for (idx, item) in self.0.iter().rev().enumerate() {
+            if item.is_some() {
+                return Some(idx);
+            }
+        }
+        None
+    }
+    fn get_vacant(&self) -> Option<usize> {
+        let mut previous: i32 = -1;
+        for c in self.0.iter() {
+            if c.is_none() {
+                previous += 1;
+            } else {
+                break;
+            }
+        }
+        if previous < 0 {
+            return None;
+        }
+        Some(previous as usize)
+    }
+}
+
+impl Stacks {
+    fn swap_crates(&mut self, from: usize, to: usize) {
+        let origin = self.0.get_mut(from).unwrap();
+        let source = origin.get_top_crate().expect("source");
+        let moved = origin.0.get(source).to_owned().unwrap().clone();
+        origin.0.remove(source);
+        drop(origin);
+
+        let destination = self.0.get_mut(to).unwrap();
+        let target = destination.get_vacant().expect("target");
+        destination.0 = destination.0.splice(target..=target, vec![moved]).collect();
     }
 }
 
