@@ -1,13 +1,14 @@
 #![allow(dead_code)]
 
-use std::{borrow::Borrow, rc::Rc};
+use std::{ops::Deref, rc::Rc};
 
+#[derive(Debug)]
 pub struct File {
     name: String,
     size: usize,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Folder {
     children: Vec<Rc<Resource>>,
     parent: Option<Rc<Folder>>,
@@ -45,16 +46,20 @@ impl FileSystem {
                 let idx = self.find(path);
                 self.current = Some(idx);
             }
+            Command::Ls => {}
         };
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Command {
     To(String),
     Root,
     Back,
+    Ls,
 }
 
+#[derive(Debug)]
 pub enum Resource {
     File(File),
     Folder(Folder),
@@ -85,8 +90,79 @@ impl Size for Resource {
     }
 }
 
+#[derive(Debug)]
+pub enum StdOutLine {
+    Cmd(Command),
+    Output(Resource),
+}
+
+#[derive(Debug)]
+pub struct StdOut(Vec<StdOutLine>);
+
+impl From<&str> for StdOut {
+    fn from(v: &str) -> Self {
+        let mut stdout = vec![];
+        for line in v.lines() {
+            stdout.push(StdOutLine::from(line));
+        }
+        Self(stdout)
+    }
+}
+
+impl From<&str> for StdOutLine {
+    fn from(v: &str) -> Self {
+        if v.starts_with('$') {
+            return StdOutLine::Cmd(Command::from(v));
+        }
+        if v.starts_with("dir") {
+            return StdOutLine::Output(Resource::Folder(Folder::from(v)));
+        }
+        StdOutLine::Output(Resource::File(File::from(v)))
+    }
+}
+
+impl From<&str> for Folder {
+    fn from(v: &str) -> Self {
+        Self {
+            children: vec![],
+            parent: None,
+            path: v[4..].to_string(),
+        }
+    }
+}
+
+impl From<&str> for File {
+    fn from(v: &str) -> Self {
+        let parts: Vec<&str> = v.split(" ").collect();
+        assert!(parts.len() == 2);
+        let size = parts
+            .get(0)
+            .expect("filesize")
+            .parse()
+            .expect("should be a digit");
+        let name = parts.get(1).expect("filename").deref();
+        Self {
+            name: name.into(),
+            size,
+        }
+    }
+}
+
+impl From<&str> for Command {
+    fn from(v: &str) -> Self {
+        match &v[2..] {
+            "ls" => Command::Ls,
+            "cd .." => Command::Back,
+            "cd /" => Command::Root,
+            _ => Command::To(v[5..].to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::{Command, File, Folder, StdOut};
+
     const INPUT: &'static str = "$ cd /
 $ ls
 dir a
@@ -110,6 +186,34 @@ $ ls
 8033020 d.log
 5626152 d.ext
 7214296 k";
+
+    #[test]
+    fn parse() {
+        let line = "$ ls";
+        let cmd = Command::from(line);
+        assert_eq!(cmd, Command::Ls);
+
+        let line = "$ cd /";
+        let cmd = Command::from(line);
+        assert_eq!(cmd, Command::Root);
+
+        let line = "$ cd ..";
+        let cmd = Command::from(line);
+        assert_eq!(cmd, Command::Back);
+
+        let line = "$ cd e";
+        let cmd = Command::from(line);
+        assert_eq!(cmd, Command::To("e".into()));
+
+        let line = "dir a";
+        let folder = Folder::from(line);
+        assert_eq!(folder.path.as_str(), "a");
+
+        let line = "8033020 d.log";
+        let file = File::from(line);
+        assert_eq!(file.size, 8033020);
+        assert_eq!(file.name.as_str(), "d.log");
+    }
 
     #[test]
     fn sample() {}
