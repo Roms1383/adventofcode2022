@@ -42,7 +42,7 @@ impl Folder {
     }
     fn populate(&mut self, stdout: StdOut) {
         let mut current: Folder = self.to_owned();
-        for line in stdout.0.iter() {
+        for line in stdout.0.into_iter() {
             match line {
                 StdOutLine::Cmd(cmd) => match cmd {
                     Command::To(path) => {
@@ -70,7 +70,7 @@ impl Folder {
                     Command::Back => current = (&*self.parent.clone().unwrap()).borrow().clone(),
                     Command::Ls => {}
                 },
-                StdOutLine::Output(_) => todo!(),
+                StdOutLine::Output(resource) => self.children.push(Rc::new(resource)),
             }
         }
     }
