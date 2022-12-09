@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::{
+    borrow::Borrow,
     cell::{Ref, RefCell},
     ops::Deref,
     rc::Rc,
@@ -19,103 +20,58 @@ pub struct Folder {
     path: String,
 }
 
-impl Folder {
-    fn touch(&mut self, file: &File) {
-        self.children.push(Rc::new(Resource::File(file.clone())));
-    }
-    fn mkdir(&mut self, folder: &Folder) {
-        self.children
-            .push(Rc::new(Resource::Folder(folder.clone())));
-    }
-}
-
-#[derive(Debug)]
-pub struct FileSystem {
-    tree: Vec<Rc<RefCell<Folder>>>,
-    current: Option<usize>,
-}
-
-impl Default for FileSystem {
+impl Default for Folder {
     fn default() -> Self {
         Self {
-            tree: vec![],
-            current: None,
+            children: vec![],
+            parent: None,
+            path: String::from("/"),
         }
     }
 }
 
-impl FileSystem {
-    fn find(&self, path: &str) -> usize {
-        self.tree
-            .iter()
-            .position(|x| x.borrow().path == path)
-            .unwrap()
+impl Folder {
+    fn touch(&mut self, file: &File) {
+        println!("touch {file:#?}");
+        self.children.push(Rc::new(Resource::File(file.clone())));
     }
-    fn retrieve(&self, idx: usize) -> Ref<Folder> {
-        self.tree.get(idx).unwrap().borrow()
+    fn mkdir(&mut self, folder: &Folder) {
+        println!("mkdir {folder:#?}");
+        self.children
+            .push(Rc::new(Resource::Folder(folder.clone())));
     }
-    fn execute(&mut self, cmd: &Command) {
-        match cmd {
-            Command::Root => {
-                if self.tree.len() > 0 {
-                    self.current = Some(0);
-                }
-            }
-            Command::Back => {
-                if let Some(ref current) = self.current {
-                    let current = self.retrieve(current.clone());
-                    let parent = current.parent.clone();
-                    drop(current);
-                    if let Some(parent) = parent {
-                        let idx = self.find(parent.borrow().path.as_str());
-                        self.current = Some(idx);
-                    }
-                }
-            }
-            Command::To(path) => {
-                let idx = self.find(path);
-                self.current = Some(idx);
-            }
-            Command::Ls => {}
-        };
-    }
-    fn populate(&mut self, stdout: &StdOut) {
+    fn populate(&mut self, stdout: StdOut) {
+        let mut current: Folder = self.to_owned();
         for line in stdout.0.iter() {
             match line {
-                StdOutLine::Cmd(cmd) => {
-                    self.execute(cmd);
-                }
-                StdOutLine::Output(resource) => match resource {
-                    Resource::File(file) => {
-                        let idx = self.current.unwrap();
-                        let folder = &**self.tree.get(idx).unwrap();
-                        let mut guard = folder.borrow_mut();
-                        guard.touch(file);
+                StdOutLine::Cmd(cmd) => match cmd {
+                    Command::To(path) => {
+                        let folder = current
+                            .children
+                            .into_iter()
+                            .find_map(|x| match &*x {
+                                Resource::File(_) => None,
+                                Resource::Folder(folder) => {
+                                    if folder.path.as_str() == path.as_str() {
+                                        return Some(folder.borrow().clone());
+                                    } else {
+                                        return None;
+                                    }
+                                }
+                            })
+                            .unwrap();
+                        current = folder.clone();
                     }
-                    Resource::Folder(child) => {
-                        if self.tree.len() > 0 {
-                            let idx = self.current.unwrap();
-                            let initial = self.tree.get(idx).unwrap();
-                            let folder = &**initial;
-                            let mut guard = folder.borrow_mut();
-                            let child = Folder {
-                                children: vec![],
-                                parent: Some(Rc::clone(initial)),
-                                path: child.path.clone(),
-                            };
-                            guard.mkdir(&child);
-                        } else {
-                            let root = Folder {
-                                children: vec![],
-                                parent: None,
-                                path: child.path.clone(),
-                            };
-                            self.tree.push(Rc::new(RefCell::new(root)));
-                            self.current = Some(0);
+                    Command::Root => {
+                        while let Some(parent) = current.parent {
+                            current = (&*parent).borrow().clone();
                         }
                     }
+                    Command::Back => current = (&*self.parent.clone().unwrap()).borrow().clone(),
+                    Command::Ls => {}
                 },
-            };
+                StdOutLine::Output(_) => todo!(),
+            }
         }
     }
 }
@@ -132,6 +88,15 @@ pub enum Command {
 pub enum Resource {
     File(File),
     Folder(Folder),
+}
+
+impl Resource {
+    fn is_dir(&self) -> bool {
+        match self {
+            Resource::File(_) => false,
+            Resource::Folder(_) => true,
+        }
+    }
 }
 
 pub trait Size {
@@ -230,7 +195,7 @@ impl From<&str> for Command {
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, File, FileSystem, Folder, StdOut};
+    use super::{Command, File, Folder, StdOut};
 
     const INPUT: &'static str = "$ cd /
 $ ls
@@ -288,9 +253,8 @@ $ ls
     fn sample() {
         let stdout = StdOut::from(INPUT);
         println!("{stdout:#?}");
-        let mut fs = FileSystem::default();
-        fs.populate(&stdout);
-        println!("{fs:#?}");
+        let mut root = Folder::default();
+        root.populate(stdout);
         assert!(false);
     }
 }
