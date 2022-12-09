@@ -1,17 +1,21 @@
+use std::collections::VecDeque;
+
 use regex::Regex;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Crate(char);
 
-#[derive(Debug, Clone)]
-pub struct Stack(Vec<Option<Crate>>);
+#[derive(Debug, Clone, PartialEq)]
+pub struct Stack(VecDeque<Crate>);
 
+#[derive(Debug)]
 pub struct Move {
     steps: usize,
     from: usize,
     to: usize,
 }
 
+#[derive(Debug)]
 pub struct Moves(Vec<Move>);
 
 impl From<&str> for Moves {
@@ -29,6 +33,7 @@ impl From<&str> for Moves {
     }
 }
 
+#[derive(Debug)]
 pub struct Stacks(Vec<Stack>);
 
 impl From<&str> for Crate {
@@ -41,12 +46,10 @@ impl From<&str> for Crate {
 
 impl From<&Vec<Option<&str>>> for Stack {
     fn from(v: &Vec<Option<&str>>) -> Self {
-        let mut stack = vec![];
+        let mut stack = VecDeque::new();
         for line in v {
-            if line.is_none() {
-                stack.push(None);
-            } else {
-                stack.push(Some(Crate::from(line.unwrap())));
+            if line.is_some() {
+                stack.push_back(Crate::from(line.unwrap()));
             }
         }
         Stack(stack)
@@ -89,11 +92,7 @@ impl From<&str> for Stacks {
                     let part = &line[index..index + 3];
                     if !part.trim().is_empty() {
                         stack.push(Some(part));
-                    } else {
-                        stack.push(None);
                     }
-                } else {
-                    stack.push(None);
                 }
             }
             stacks.push(stack.clone());
@@ -104,62 +103,69 @@ impl From<&str> for Stacks {
     }
 }
 
+#[allow(dead_code)]
 impl Stack {
-    fn get_top_crate(&self) -> Option<usize> {
-        for (idx, item) in self.0.iter().enumerate() {
-            if item.is_some() {
-                return Some(idx);
-            }
+    fn get_top_crate(&self) -> Option<char> {
+        for item in self.0.iter() {
+            return Some(item.0);
         }
         None
     }
-    fn get_bottom_crate(&self) -> Option<usize> {
-        for (idx, item) in self.0.iter().rev().enumerate() {
-            if item.is_some() {
-                return Some(idx);
-            }
-        }
-        None
-    }
-    fn get_vacant(&self) -> Option<usize> {
-        let mut previous: i32 = -1;
-        for c in self.0.iter() {
-            if c.is_none() {
-                previous += 1;
-            } else {
-                break;
-            }
-        }
-        if previous < 0 {
+    fn get_top_crate_idx(&self) -> Option<usize> {
+        if self.0.len() == 0 {
             return None;
         }
-        Some(previous as usize)
+        Some(0)
+    }
+    fn get_bottom_crate_idx(&self) -> Option<usize> {
+        if self.0.len() == 0 {
+            return None;
+        }
+        Some(self.0.len() - 1)
     }
 }
 
+#[allow(dead_code)]
 impl Stacks {
     fn swap_crates(&mut self, from: usize, to: usize) {
         let origin = self.0.get_mut(from).unwrap();
-        let source = origin.get_top_crate().expect("source");
-        let moved = origin.0.get(source).to_owned().unwrap().clone();
-        origin.0.remove(source);
+        let source = origin.get_top_crate_idx().expect("source");
+        let moved = origin.0.remove(source).unwrap();
         drop(origin);
 
         let destination = self.0.get_mut(to).unwrap();
-        let target = destination.get_vacant().expect("target");
-        destination.0 = destination.0.splice(target..=target, vec![moved]).collect();
+        destination.0.push_front(moved);
+    }
+    fn move_crates(&mut self, m: &Move) {
+        let mut times = m.steps;
+        while times > 0 {
+            self.swap_crates(m.from - 1, m.to - 1);
+            times -= 1;
+        }
+    }
+    pub fn multiple_move_crates(&mut self, moves: Moves) {
+        for m in moves.0.iter() {
+            self.move_crates(m);
+        }
+    }
+    pub fn get_top_crates(&self) -> String {
+        let mut found = String::from("");
+        for stack in self.0.iter() {
+            if let Some(c) = stack.get_top_crate() {
+                found.push(c);
+            }
+        }
+        found
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::day_5::Moves;
+    use crate::day_5::{Moves, Stack};
 
-    use super::Stacks;
+    use super::{Crate, Stacks};
 
-    #[test]
-    fn convert() {
-        let s = "    [D]    
+    const INPUT: &'static str = "    [D]    
 [N] [C]    
 [Z] [M] [P]
   1   2   3 
@@ -168,9 +174,12 @@ move 1 from 2 to 1
 move 3 from 1 to 3
 move 2 from 2 to 1
 move 1 from 1 to 2";
-        let stacks = Stacks::from(s);
+
+    #[test]
+    fn convert() {
+        let stacks = Stacks::from(INPUT);
         assert_eq!(stacks.0.len(), 3);
-        let moves = Moves::from(s);
+        let moves = Moves::from(INPUT);
         assert_eq!(moves.0.len(), 4);
         let current = moves.0.get(0).unwrap();
         assert_eq!(current.steps, 1);
@@ -188,5 +197,64 @@ move 1 from 1 to 2";
         assert_eq!(current.steps, 1);
         assert_eq!(current.from, 1);
         assert_eq!(current.to, 2);
+    }
+
+    #[test]
+    fn steps() {
+        let mut stacks = Stacks::from(INPUT);
+        let moves = Moves::from(INPUT);
+
+        let first = moves.0.get(0).unwrap();
+        stacks.move_crates(first);
+        let current = stacks.0.get(0).unwrap();
+        assert_eq!(*current, Stack([Crate('D'), Crate('N'), Crate('Z')].into()));
+        let current = stacks.0.get(1).unwrap();
+        assert_eq!(*current, Stack([Crate('C'), Crate('M')].into()));
+        let current = stacks.0.get(2).unwrap();
+        assert_eq!(*current, Stack([Crate('P')].into()));
+
+        let second = moves.0.get(1).unwrap();
+        stacks.move_crates(second);
+        let current = stacks.0.get(0).unwrap();
+        assert_eq!(*current, Stack([].into()));
+        let current = stacks.0.get(1).unwrap();
+        assert_eq!(*current, Stack([Crate('C'), Crate('M')].into()));
+        let current = stacks.0.get(2).unwrap();
+        assert_eq!(
+            *current,
+            Stack([Crate('Z'), Crate('N'), Crate('D'), Crate('P')].into())
+        );
+
+        let third = moves.0.get(2).unwrap();
+        stacks.move_crates(third);
+        let current = stacks.0.get(0).unwrap();
+        assert_eq!(*current, Stack([Crate('M'), Crate('C')].into()));
+        let current = stacks.0.get(1).unwrap();
+        assert_eq!(*current, Stack([].into()));
+        let current = stacks.0.get(2).unwrap();
+        assert_eq!(
+            *current,
+            Stack([Crate('Z'), Crate('N'), Crate('D'), Crate('P')].into())
+        );
+
+        let fourth = moves.0.get(3).unwrap();
+        stacks.move_crates(fourth);
+        let current = stacks.0.get(0).unwrap();
+        assert_eq!(*current, Stack([Crate('C')].into()));
+        let current = stacks.0.get(1).unwrap();
+        assert_eq!(*current, Stack([Crate('M')].into()));
+        let current = stacks.0.get(2).unwrap();
+        assert_eq!(
+            *current,
+            Stack([Crate('Z'), Crate('N'), Crate('D'), Crate('P')].into())
+        );
+    }
+
+    #[test]
+    fn swap() {
+        let mut stacks = Stacks::from(INPUT);
+        let moves = Moves::from(INPUT);
+        stacks.multiple_move_crates(moves);
+        assert_eq!(stacks.get_top_crates().as_str(), "CMZ");
     }
 }
