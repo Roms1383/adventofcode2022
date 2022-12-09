@@ -1,4 +1,4 @@
-use std::ops::{Range, RangeInclusive};
+use std::ops::RangeInclusive;
 
 #[derive(Debug, Clone)]
 pub struct Section(RangeInclusive<usize>);
@@ -90,6 +90,7 @@ impl AnyOverlap for Pair {
     }
 }
 
+#[allow(dead_code)]
 impl Pairs {
     pub fn overlap_range(&self) -> Pairs {
         Pairs(
