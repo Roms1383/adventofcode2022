@@ -2,6 +2,13 @@ use std::collections::VecDeque;
 
 use regex::Regex;
 
+#[allow(dead_code)]
+#[derive(PartialEq)]
+pub enum CrateMover {
+    NineThousands,
+    NineThousandsOne,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Crate(char);
 
@@ -143,13 +150,16 @@ impl Stacks {
             stack.0.push_front(c);
         }
     }
-    pub fn move_crates(&mut self, m: &Move) {
-        let crates = self.bulk_take_crates(m.from - 1, m.steps);
+    pub fn move_crates(&mut self, m: &Move, model: &CrateMover) {
+        let mut crates = self.bulk_take_crates(m.from - 1, m.steps);
+        if model == &CrateMover::NineThousandsOne && m.steps > 1 {
+            crates.reverse();
+        }
         self.bulk_drop_crates(m.to, crates);
     }
-    pub fn multiple_move_crates(&mut self, moves: &Moves) {
+    pub fn multiple_move_crates(&mut self, moves: &Moves, model: &CrateMover) {
         for m in moves.0.iter() {
-            self.move_crates(m);
+            self.move_crates(m, model);
         }
     }
     pub fn get_top_crates(&self) -> String {
@@ -165,7 +175,7 @@ impl Stacks {
 
 #[cfg(test)]
 mod tests {
-    use crate::day_5::{Moves, Stack};
+    use crate::day_5::{CrateMover, Moves, Stack};
 
     use super::{Crate, Stacks};
 
@@ -204,12 +214,12 @@ move 1 from 1 to 2";
     }
 
     #[test]
-    fn steps() {
+    fn steps_9000() {
         let mut stacks = Stacks::from(INPUT);
         let moves = Moves::from(INPUT);
 
         let first = moves.0.get(0).unwrap();
-        stacks.move_crates(first);
+        stacks.move_crates(first, &CrateMover::NineThousands);
         let current = stacks.0.get(0).unwrap();
         assert_eq!(*current, Stack([Crate('D'), Crate('N'), Crate('Z')].into()));
         let current = stacks.0.get(1).unwrap();
@@ -218,7 +228,7 @@ move 1 from 1 to 2";
         assert_eq!(*current, Stack([Crate('P')].into()));
 
         let second = moves.0.get(1).unwrap();
-        stacks.move_crates(second);
+        stacks.move_crates(second, &CrateMover::NineThousands);
         let current = stacks.0.get(0).unwrap();
         assert_eq!(*current, Stack([].into()));
         let current = stacks.0.get(1).unwrap();
@@ -230,7 +240,7 @@ move 1 from 1 to 2";
         );
 
         let third = moves.0.get(2).unwrap();
-        stacks.move_crates(third);
+        stacks.move_crates(third, &CrateMover::NineThousands);
         let current = stacks.0.get(0).unwrap();
         assert_eq!(*current, Stack([Crate('M'), Crate('C')].into()));
         let current = stacks.0.get(1).unwrap();
@@ -242,7 +252,7 @@ move 1 from 1 to 2";
         );
 
         let fourth = moves.0.get(3).unwrap();
-        stacks.move_crates(fourth);
+        stacks.move_crates(fourth, &CrateMover::NineThousands);
         let current = stacks.0.get(0).unwrap();
         assert_eq!(*current, Stack([Crate('C')].into()));
         let current = stacks.0.get(1).unwrap();
@@ -255,10 +265,69 @@ move 1 from 1 to 2";
     }
 
     #[test]
-    fn swap() {
+    fn steps_9001() {
         let mut stacks = Stacks::from(INPUT);
         let moves = Moves::from(INPUT);
-        stacks.multiple_move_crates(&moves);
+
+        let first = moves.0.get(0).unwrap();
+        stacks.move_crates(first, &CrateMover::NineThousandsOne);
+        let current = stacks.0.get(0).unwrap();
+        assert_eq!(*current, Stack([Crate('D'), Crate('N'), Crate('Z')].into()));
+        let current = stacks.0.get(1).unwrap();
+        assert_eq!(*current, Stack([Crate('C'), Crate('M')].into()));
+        let current = stacks.0.get(2).unwrap();
+        assert_eq!(*current, Stack([Crate('P')].into()));
+
+        let second = moves.0.get(1).unwrap();
+        stacks.move_crates(second, &CrateMover::NineThousandsOne);
+        let current = stacks.0.get(0).unwrap();
+        assert_eq!(*current, Stack([].into()));
+        let current = stacks.0.get(1).unwrap();
+        assert_eq!(*current, Stack([Crate('C'), Crate('M')].into()));
+        let current = stacks.0.get(2).unwrap();
+        assert_eq!(
+            *current,
+            Stack([Crate('D'), Crate('N'), Crate('Z'), Crate('P')].into())
+        );
+
+        let third = moves.0.get(2).unwrap();
+        stacks.move_crates(third, &CrateMover::NineThousandsOne);
+        let current = stacks.0.get(0).unwrap();
+        assert_eq!(*current, Stack([Crate('C'), Crate('M')].into()));
+        let current = stacks.0.get(1).unwrap();
+        assert_eq!(*current, Stack([].into()));
+        let current = stacks.0.get(2).unwrap();
+        assert_eq!(
+            *current,
+            Stack([Crate('D'), Crate('N'), Crate('Z'), Crate('P')].into())
+        );
+
+        let fourth = moves.0.get(3).unwrap();
+        stacks.move_crates(fourth, &CrateMover::NineThousandsOne);
+        let current = stacks.0.get(0).unwrap();
+        assert_eq!(*current, Stack([Crate('M')].into()));
+        let current = stacks.0.get(1).unwrap();
+        assert_eq!(*current, Stack([Crate('C')].into()));
+        let current = stacks.0.get(2).unwrap();
+        assert_eq!(
+            *current,
+            Stack([Crate('D'), Crate('N'), Crate('Z'), Crate('P')].into())
+        );
+    }
+
+    #[test]
+    fn swap_9000() {
+        let mut stacks = Stacks::from(INPUT);
+        let moves = Moves::from(INPUT);
+        stacks.multiple_move_crates(&moves, &CrateMover::NineThousands);
         assert_eq!(stacks.get_top_crates().as_str(), "CMZ");
+    }
+
+    #[test]
+    fn swap_9001() {
+        let mut stacks = Stacks::from(INPUT);
+        let moves = Moves::from(INPUT);
+        stacks.multiple_move_crates(&moves, &CrateMover::NineThousandsOne);
+        assert_eq!(stacks.get_top_crates().as_str(), "MCD");
     }
 }
