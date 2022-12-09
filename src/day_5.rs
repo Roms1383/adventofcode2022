@@ -127,23 +127,27 @@ impl Stack {
 
 #[allow(dead_code)]
 impl Stacks {
-    fn swap_crates(&mut self, from: usize, to: usize) {
-        let origin = self.0.get_mut(from).unwrap();
-        let source = origin.get_top_crate_idx().expect("source");
-        let moved = origin.0.remove(source).unwrap();
-        drop(origin);
-
-        let destination = self.0.get_mut(to).unwrap();
-        destination.0.push_front(moved);
+    pub fn bulk_take_crates(&mut self, from: usize, num: usize) -> Vec<Crate> {
+        let stack = self.0.get_mut(from).unwrap();
+        let mut crates = vec![];
+        let mut num = num.clone();
+        while num > 0 {
+            crates.push(stack.0.pop_front().unwrap());
+            num -= 1;
+        }
+        crates
     }
-    fn move_crates(&mut self, m: &Move) {
-        let mut times = m.steps;
-        while times > 0 {
-            self.swap_crates(m.from - 1, m.to - 1);
-            times -= 1;
+    pub fn bulk_drop_crates(&mut self, to: usize, crates: Vec<Crate>) {
+        let stack = self.0.get_mut(to - 1).unwrap();
+        for c in crates.into_iter() {
+            stack.0.push_front(c);
         }
     }
-    pub fn multiple_move_crates(&mut self, moves: Moves) {
+    pub fn move_crates(&mut self, m: &Move) {
+        let crates = self.bulk_take_crates(m.from - 1, m.steps);
+        self.bulk_drop_crates(m.to, crates);
+    }
+    pub fn multiple_move_crates(&mut self, moves: &Moves) {
         for m in moves.0.iter() {
             self.move_crates(m);
         }
@@ -254,7 +258,7 @@ move 1 from 1 to 2";
     fn swap() {
         let mut stacks = Stacks::from(INPUT);
         let moves = Moves::from(INPUT);
-        stacks.multiple_move_crates(moves);
+        stacks.multiple_move_crates(&moves);
         assert_eq!(stacks.get_top_crates().as_str(), "CMZ");
     }
 }
