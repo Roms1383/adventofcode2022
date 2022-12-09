@@ -7,6 +7,6 @@ mod day_4;
 fn main() {
     let puzzle = read_to_string("./day.4.txt").expect("cannot read puzzle.txt");
     let pairs = Pairs::from(puzzle.as_str());
-    let pairs = pairs.overlap_range();
+    let pairs = pairs.overlap_digit();
     println!("overlapping assignments: {}", pairs.0.len());
 }

@@ -49,15 +49,17 @@ impl From<&str> for Pairs {
 }
 
 pub trait Overlap {
-    fn overlap(&self, other: Self) -> bool;
+    fn overlap_all(&self, other: Self) -> bool;
+    fn overlap_one(&self, other: Self) -> bool;
 }
 
 pub trait AnyOverlap {
-    fn any_overlap(&self) -> bool;
+    fn overlap_all_in_any_way(&self) -> bool;
+    fn overlap_one_in_any_way(&self) -> bool;
 }
 
 impl Overlap for RangeInclusive<usize> {
-    fn overlap(&self, other: Self) -> bool {
+    fn overlap_all(&self, other: Self) -> bool {
         for v in other {
             if !self.contains(&v) {
                 return false;
@@ -65,22 +67,44 @@ impl Overlap for RangeInclusive<usize> {
         }
         true
     }
+    fn overlap_one(&self, other: Self) -> bool {
+        for v in other {
+            if self.contains(&v) {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 impl AnyOverlap for Pair {
-    fn any_overlap(&self) -> bool {
+    fn overlap_all_in_any_way(&self) -> bool {
         let outer = self.first.0.clone();
         let inner = self.second.0.clone();
-        outer.overlap(inner.clone()) || inner.overlap(outer)
+        outer.overlap_all(inner.clone()) || inner.overlap_all(outer)
+    }
+    fn overlap_one_in_any_way(&self) -> bool {
+        let outer = self.first.0.clone();
+        let inner = self.second.0.clone();
+        outer.overlap_one(inner.clone()) || inner.overlap_one(outer)
     }
 }
 
 impl Pairs {
-    pub fn overlapping(&self) -> Pairs {
+    pub fn overlap_range(&self) -> Pairs {
         Pairs(
             self.0
                 .iter()
-                .filter(|x| x.any_overlap())
+                .filter(|x| x.overlap_all_in_any_way())
+                .map(Clone::clone)
+                .collect(),
+        )
+    }
+    pub fn overlap_digit(&self) -> Pairs {
+        Pairs(
+            self.0
+                .iter()
+                .filter(|x| x.overlap_one_in_any_way())
                 .map(Clone::clone)
                 .collect(),
         )
@@ -109,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn overlap() {
+    fn overlap_range() {
         let s = "2-4,6-8
 2-3,4-5
 5-7,7-9
@@ -117,7 +141,20 @@ mod tests {
 6-6,4-6
 2-6,4-8";
         let pairs = Pairs::from(s);
-        let pairs = pairs.overlapping();
+        let pairs = pairs.overlap_range();
         assert_eq!(pairs.0.len(), 2);
+    }
+
+    #[test]
+    fn overlap_digit() {
+        let s = "2-4,6-8
+2-3,4-5
+5-7,7-9
+2-8,3-7
+6-6,4-6
+2-6,4-8";
+        let pairs = Pairs::from(s);
+        let pairs = pairs.overlap_digit();
+        assert_eq!(pairs.0.len(), 4);
     }
 }
