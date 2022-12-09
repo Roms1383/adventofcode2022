@@ -1,8 +1,13 @@
 #![allow(dead_code)]
 
-use std::{ops::Deref, rc::Rc};
+use std::{
+    borrow::BorrowMut,
+    cell::{Ref, RefCell, RefMut},
+    ops::Deref,
+    rc::Rc,
+};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct File {
     name: String,
     size: usize,
@@ -15,17 +20,26 @@ pub struct Folder {
     path: String,
 }
 
+impl Folder {
+    fn touch(&mut self, file: &File) {
+        self.children.push(Rc::new(Resource::File(file.clone())));
+    }
+}
+
 pub struct FileSystem {
-    tree: Vec<Rc<Folder>>,
+    tree: Vec<Rc<RefCell<Folder>>>,
     current: Option<usize>,
 }
 
 impl FileSystem {
     fn find(&self, path: &str) -> usize {
-        self.tree.iter().position(|x| x.path == path).unwrap()
+        self.tree
+            .iter()
+            .position(|x| x.borrow().path == path)
+            .unwrap()
     }
-    fn retrieve(&self, idx: usize) -> &Folder {
-        self.tree.get(idx).unwrap()
+    fn retrieve(&self, idx: usize) -> Ref<Folder> {
+        self.tree.get(idx).unwrap().borrow()
     }
     fn goto(&mut self, cmd: &Command) {
         match cmd {
@@ -36,6 +50,7 @@ impl FileSystem {
                 if let Some(ref current) = self.current {
                     let current = self.retrieve(current.clone());
                     let parent = current.parent.clone();
+                    drop(current);
                     if let Some(parent) = parent {
                         let idx = self.find(parent.path.as_str());
                         self.current = Some(idx);
@@ -48,6 +63,24 @@ impl FileSystem {
             }
             Command::Ls => {}
         };
+    }
+    fn populate(&mut self, stdout: &StdOut) {
+        for line in stdout.0.iter() {
+            match line {
+                StdOutLine::Cmd(cmd) => {
+                    self.goto(cmd);
+                }
+                StdOutLine::Output(resource) => match resource {
+                    Resource::File(file) => {
+                        let idx = self.current.unwrap();
+                        let folder = &**self.tree.get(idx).unwrap();
+                        let mut guard = folder.borrow_mut();
+                        guard.touch(file);
+                    }
+                    Resource::Folder(_) => todo!(),
+                },
+            };
+        }
     }
 }
 
@@ -216,5 +249,8 @@ $ ls
     }
 
     #[test]
-    fn sample() {}
+    fn sample() {
+        println!("{:#?}", StdOut::from(INPUT));
+        assert!(false);
+    }
 }
