@@ -49,9 +49,10 @@ pub struct FileSystem {
 
 impl Default for FileSystem {
     fn default() -> Self {
+        let root = Folder::default();
         Self {
-            tree: vec![Resource::Folder(Folder::default())],
-            current: "/".into(),
+            current: root.path.clone(),
+            tree: vec![Resource::Folder(root)],
         }
     }
 }
@@ -121,14 +122,12 @@ impl From<StdOut> for FileSystem {
                 }
                 Command::Ls => {}
                 Command::Dir(path) => {
-                    println!("dir {path}");
                     root.tree.push(Resource::Folder(Folder {
                         path: path.clone(),
                         parent: Some(root.current.clone()),
                     }));
                 }
                 Command::File(size, name) => {
-                    println!("file root.current {}", root.current);
                     root.tree.push(Resource::File(File {
                         name: name.clone(),
                         size: *size,
@@ -229,6 +228,15 @@ impl FileSystem {
             })
             .collect()
     }
+    pub fn find_dir(&self, path: &str) -> &Folder {
+        self.tree
+            .iter()
+            .find_map(|x| match x {
+                Resource::Folder(dir) if dir.path == path => Some(dir),
+                _ => None,
+            })
+            .expect("unknown path")
+    }
     pub fn find_dirs(&self) -> Vec<&Folder> {
         self.tree
             .iter()
@@ -253,12 +261,28 @@ impl FileSystem {
     pub fn find_lightweight_dirs(&self, max: usize) -> Vec<&Folder> {
         self.find_dirs()
             .into_iter()
-            .filter(|x| {
-                let files = self.find_nested_files(x.path.as_str());
-                let size = files.size();
-                size <= max
-            })
+            .filter(|x| self.find_nested_files(x.path.as_str()).size() <= max)
             .collect()
+    }
+    pub fn dirs_size(&self, dirs: Vec<&Folder>) -> usize {
+        dirs.iter()
+            .map(|x| self.find_nested_files(x.path.as_str()).size())
+            .sum()
+    }
+    pub fn dir_size(&self, path: &str) -> usize {
+        self.find_nested_files(path).size()
+    }
+    pub fn sum_lightweight_dirs(&self, max: usize) -> usize {
+        self.find_dirs()
+            .iter()
+            .filter_map(|x| {
+                let size = self.find_nested_files(x.path.as_str()).size();
+                if size <= max {
+                    return Some(size);
+                }
+                None
+            })
+            .sum()
     }
 }
 
@@ -266,7 +290,7 @@ impl FileSystem {
 mod tests {
     use crate::day_7::{FileSystem, StdOut};
 
-    use super::{Command, File, Folder};
+    use super::Command;
 
     const INPUT: &'static str = "$ cd /
 $ ls
@@ -320,11 +344,29 @@ $ ls
     }
 
     #[test]
+    fn sizes() {
+        let stdout = StdOut::from(INPUT);
+        let fs = FileSystem::from(stdout);
+        let size = fs.dir_size("e");
+        assert_eq!(size, 584);
+        let size = fs.dir_size("a");
+        assert_eq!(size, 94_853);
+        let size = fs.dir_size("d");
+        assert_eq!(size, 24_933_642);
+        let size = fs.dir_size("/");
+        assert_eq!(size, 48_381_165);
+    }
+
+    #[test]
     fn lightweight() {
         let stdout = StdOut::from(INPUT);
         let fs = FileSystem::from(stdout);
         let lightweight = fs.find_lightweight_dirs(100_000);
         let paths: Vec<&str> = lightweight.iter().map(|x| x.path.as_str()).collect();
         assert_eq!(paths, vec!["a", "e"]);
+        let total = fs.dirs_size(lightweight);
+        assert_eq!(total, 95_437);
+        let total = fs.sum_lightweight_dirs(100_000);
+        assert_eq!(total, 95_437);
     }
 }
