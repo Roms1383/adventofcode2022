@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Direction {
     Up,
@@ -6,8 +8,19 @@ pub enum Direction {
     Right,
 }
 
+pub enum Convolution {
+    Up,
+    Down,
+    Left,
+    Right,
+    UpLeft,
+    UpRight,
+    DownLeft,
+    DownRight,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Movement {
+pub struct Motion {
     steps: usize,
     direction: Direction,
 }
@@ -24,14 +37,14 @@ pub struct Head(Position);
 #[derive(Debug, Clone, Copy)]
 pub struct Tail(Position);
 
-pub struct Something {
+pub struct Manager {
     head: Head,
     tail: Tail,
     visited: Vec<Position>,
 }
 
 #[derive(Debug)]
-pub struct Movements(Vec<Movement>);
+pub struct Motions(Vec<Motion>);
 
 impl From<&str> for Direction {
     fn from(v: &str) -> Self {
@@ -45,7 +58,7 @@ impl From<&str> for Direction {
     }
 }
 
-impl From<&str> for Movement {
+impl From<&str> for Motion {
     fn from(v: &str) -> Self {
         let parts: Vec<&str> = v.split(' ').collect();
         assert!(parts.len() == 2);
@@ -59,21 +72,128 @@ impl From<&str> for Movement {
     }
 }
 
-impl From<&str> for Movements {
+impl From<&str> for Motions {
     fn from(v: &str) -> Self {
         let mut movements = vec![];
         for line in v.lines() {
-            movements.push(Movement::from(line));
+            movements.push(Motion::from(line));
         }
         Self(movements)
     }
 }
 
+impl AsRef<Position> for Head {
+    fn as_ref(&self) -> &Position {
+        &self.0
+    }
+}
+
+impl AsRef<Position> for Tail {
+    fn as_ref(&self) -> &Position {
+        &self.0
+    }
+}
+
+impl Next for Position {
+    fn next(&self, toward: &Convolution) -> Position {
+        match toward {
+            Convolution::Up => Position {
+                x: self.x,
+                y: self.y - 1,
+            },
+            Convolution::Down => Position {
+                x: self.x,
+                y: self.y + 1,
+            },
+            Convolution::Left => Position {
+                x: self.x - 1,
+                y: self.y,
+            },
+            Convolution::Right => Position {
+                x: self.x + 1,
+                y: self.y,
+            },
+            Convolution::UpLeft => Position {
+                x: self.x - 1,
+                y: self.y - 1,
+            },
+            Convolution::UpRight => Position {
+                x: self.x + 1,
+                y: self.y - 1,
+            },
+            Convolution::DownLeft => Position {
+                x: self.x - 1,
+                y: self.y + 1,
+            },
+            Convolution::DownRight => Position {
+                x: self.x + 1,
+                y: self.y + 1,
+            },
+        }
+    }
+}
+
+impl Overlap for Position {
+    fn overlap(&self, related: &Self) -> bool {
+        self.x == related.x && self.y == related.y
+    }
+}
+
+impl AdjacentPositions for Position {
+    fn adjacent_positions(&self) -> Vec<Position> {
+        vec![
+            self.next(&Convolution::Up),
+            self.next(&Convolution::Down),
+            self.next(&Convolution::Left),
+            self.next(&Convolution::Right),
+            self.next(&Convolution::UpLeft),
+            self.next(&Convolution::UpRight),
+            self.next(&Convolution::DownLeft),
+            self.next(&Convolution::DownRight),
+        ]
+    }
+}
+
+impl Adjacent for Position {
+    fn adjacent(&self, related: &Self) -> bool {
+        self.adjacent_positions().iter().any(|x| x.overlap(related))
+    }
+}
+
+pub trait Next {
+    fn next(&self, toward: &Convolution) -> Self;
+}
+
+pub trait Overlap {
+    fn overlap(&self, related: &Self) -> bool;
+}
+
+pub trait Adjacent {
+    fn adjacent(&self, related: &Self) -> bool;
+}
+
+pub trait Touching {
+    fn touching(&self, related: &Self) -> bool;
+}
+
+impl<T> Touching for T
+where
+    T: Overlap + Adjacent,
+{
+    fn touching(&self, related: &Self) -> bool {
+        self.overlap(related) || self.adjacent(related)
+    }
+}
+
+pub trait AdjacentPositions {
+    fn adjacent_positions(&self) -> Vec<Position>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::Direction;
-    use super::Movement;
-    use super::Movements;
+    use super::Motion;
+    use super::Motions;
 
     const INPUT: &'static str = "R 4
 U 4
@@ -86,28 +206,28 @@ R 2";
 
     #[test]
     fn parse() {
-        let movements = Movements::from(INPUT);
-        assert_eq!(movements.0.len(), 8);
-        let movement = movements.0.get(0).unwrap();
+        let motions = Motions::from(INPUT);
+        assert_eq!(motions.0.len(), 8);
+        let motion = motions.0.get(0).unwrap();
         assert_eq!(
-            movement,
-            &Movement {
+            motion,
+            &Motion {
                 direction: Direction::Right,
                 steps: 4
             }
         );
-        let movement = movements.0.get(2).unwrap();
+        let motion = motions.0.get(2).unwrap();
         assert_eq!(
-            movement,
-            &Movement {
+            motion,
+            &Motion {
                 direction: Direction::Left,
                 steps: 3
             }
         );
-        let movement = movements.0.get(5).unwrap();
+        let motion = motions.0.get(5).unwrap();
         assert_eq!(
-            movement,
-            &Movement {
+            motion,
+            &Motion {
                 direction: Direction::Down,
                 steps: 1
             }
