@@ -11,6 +11,12 @@ pub enum Resource {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FullPath(String);
 
+impl From<&str> for FullPath {
+    fn from(v: &str) -> Self {
+        Self(v.to_string())
+    }
+}
+
 impl Display for FullPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
@@ -185,9 +191,7 @@ impl File {
         &self.parent == path
     }
     fn is_nested_in(&self, path: &FullPath) -> bool {
-        let x = path.starts_with_str(self.parent.as_ref());
-        println!("file at {} is nested in {} ({x})", path, self.parent);
-        x
+        self.parent.starts_with_str(path.as_ref())
     }
 }
 
@@ -244,21 +248,12 @@ impl FileSystem {
     pub fn find_lightweight_dirs(&self, max: usize) -> Vec<&Folder> {
         self.find_dirs()
             .into_iter()
-            .filter(|x| {
-                // println!(
-                //     "[find_lightweight_dirs] search for nested file at {}",
-                //     x.path()
-                // );
-                self.find_nested_files(&x.path()).size() <= max
-            })
+            .filter(|x| self.find_nested_files(&x.path()).size() <= max)
             .collect()
     }
     pub fn dirs_size(&self, dirs: Vec<&Folder>) -> usize {
         dirs.iter()
-            .map(|x| {
-                // println!("[dirs_size] search for nested file at {}", x.path());
-                self.find_nested_files(&x.path()).size()
-            })
+            .map(|x| self.find_nested_files(&x.path()).size())
             .sum()
     }
     pub fn dir_size(&self, path: &FullPath) -> usize {
@@ -268,10 +263,6 @@ impl FileSystem {
         self.find_dirs()
             .iter()
             .filter_map(|x| {
-                // println!(
-                //     "[sum_lightweight_dirs] search for nested file at {}",
-                //     x.path()
-                // );
                 let size = self.find_nested_files(&x.path()).size();
                 if size <= max {
                     return Some(size);
@@ -284,7 +275,7 @@ impl FileSystem {
 
 #[cfg(test)]
 mod tests {
-    use crate::day_7::{FileSystem, FullPath, StdOut};
+    use crate::day_7::{FileSystem, StdOut};
 
     use super::Command;
 
@@ -343,13 +334,13 @@ $ ls
     fn sizes() {
         let stdout = StdOut::from(INPUT);
         let fs = FileSystem::from(stdout);
-        let size = fs.dir_size(&FullPath(String::from("/a/e")));
+        let size = fs.dir_size(&"/a/e".into());
         assert_eq!(size, 584);
-        let size = fs.dir_size(&FullPath(String::from("/a")));
+        let size = fs.dir_size(&"/a".into());
         assert_eq!(size, 94_853);
-        let size = fs.dir_size(&FullPath(String::from("/d")));
+        let size = fs.dir_size(&"/d".into());
         assert_eq!(size, 24_933_642);
-        let size = fs.dir_size(&FullPath(String::from("/")));
+        let size = fs.dir_size(&"/".into());
         assert_eq!(size, 48_381_165);
     }
 
