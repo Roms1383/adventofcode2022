@@ -1,130 +1,129 @@
 #![allow(dead_code)]
 
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
-#[derive(Debug, Eq, Hash, PartialEq, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     x: usize,
     y: usize,
 }
 
-#[derive(Debug, Clone)]
-pub struct Tree {
-    size: usize,
-    position: Position,
-    parent: Rc<Forest>,
-}
-
-impl PartialEq for Tree {
-    fn eq(&self, other: &Self) -> bool {
-        self.size == other.size && self.position == other.position
-    }
-}
-
-impl Tree {
-    fn size(&self) -> usize {
-        self.size
-    }
-    fn leftmost(&self) -> bool {
-        self.position.x == 0
-    }
-    fn rightmost(&self) -> bool {
-        self.position.x == self.parent.width
-    }
-    fn topmost(&self) -> bool {
-        self.position.y == 0
-    }
-    fn bottommost(&self) -> bool {
-        self.position.y == self.parent.height
-    }
-    fn left(&self) -> Option<&Tree> {
-        if self.leftmost() {
-            return None;
-        }
-        self.parent.find(&Position {
-            x: self.position.x - 1,
-            y: self.position.y,
-        })
-    }
-    fn right(&self) -> Option<&Tree> {
-        if self.rightmost() {
-            return None;
-        }
-        self.parent.find(&Position {
-            x: self.position.x + 1,
-            y: self.position.y,
-        })
-    }
-    fn up(&self) -> Option<&Tree> {
-        if self.topmost() {
-            return None;
-        }
-        self.parent.find(&Position {
-            x: self.position.x,
-            y: self.position.y - 1,
-        })
-    }
-    fn down(&self) -> Option<&Tree> {
-        if self.bottommost() {
-            return None;
-        }
-        self.parent.find(&Position {
-            x: self.position.x,
-            y: self.position.y + 1,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Forest {
-    /// <(x, y), tree>
-    grid: HashMap<(usize, usize), Tree>,
+#[derive(Debug, Clone, Copy)]
+pub struct Bounds {
     width: usize,
     height: usize,
 }
 
-impl Forest {
-    fn find(&self, at: &Position) -> Option<&Tree> {
-        self.grid.get(&(at.x, at.y))
+impl From<(usize, usize)> for Position {
+    fn from(v: (usize, usize)) -> Self {
+        Self { x: v.0, y: v.1 }
     }
 }
 
-impl Default for Forest {
-    fn default() -> Self {
-        Self {
-            grid: HashMap::new(),
-            width: 0,
-            height: 0,
+impl Position {
+    fn edge(&self, toward: Direction, bounds: Bounds) -> bool {
+        match toward {
+            Direction::Left => self.x == 0,
+            Direction::Right => self.x == bounds.width - 1,
+            Direction::Up => self.y == 0,
+            Direction::Down => self.y == bounds.height - 1,
         }
+    }
+    fn next(&self, toward: Direction) -> Position {
+        match toward {
+            Direction::Left => Position {
+                x: self.x - 1,
+                y: self.y,
+            },
+            Direction::Right => Position {
+                x: self.x + 1,
+                y: self.y,
+            },
+            Direction::Up => Position {
+                x: self.x,
+                y: self.y - 1,
+            },
+            Direction::Down => Position {
+                x: self.x,
+                y: self.y + 1,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Size(usize);
+
+#[derive(Debug, Clone, Copy)]
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+#[derive(Debug)]
+pub struct Forest {
+    grid: HashMap<Position, Size>,
+    bounds: Bounds,
+}
+
+impl Forest {
+    fn edge(&self, at: Position, toward: Direction) -> bool {
+        at.edge(toward, self.bounds)
+    }
+    fn neighbor(&self, at: Position, toward: Direction) -> Option<&Size> {
+        if self.edge(at, toward) {
+            return None;
+        }
+        self.grid.get(&at.next(toward))
+    }
+    fn visible(&self, at: Position, toward: Direction) -> bool {
+        if self.edge(at, toward) {
+            return true;
+        }
+        todo!()
+    }
+    fn neighbors(&self, at: Position, toward: Direction) -> Vec<&Size> {
+        if self.edge(at, toward) {
+            return Vec::with_capacity(0);
+        }
+        let mut neighbors = vec![];
+        let mut next = at.clone();
+        loop {
+            next = next.next(toward);
+            neighbors.push(self.grid.get(&next).unwrap());
+            if next.edge(toward, self.bounds) {
+                break;
+            }
+        }
+        neighbors
     }
 }
 
 impl From<&str> for Forest {
     fn from(v: &str) -> Self {
-        let mut forest = Self::default();
-        forest.width = v.clone().lines().next().unwrap().len();
-        forest.height = v.clone().lines().count();
-        let reference = Rc::new(forest.clone());
+        let mut forest = Self {
+            grid: HashMap::new(),
+            bounds: Bounds {
+                width: v.clone().lines().next().unwrap().len(),
+                height: v.clone().lines().count(),
+            },
+        };
         for (y, line) in v.lines().enumerate() {
             for (x, c) in line.chars().enumerate() {
-                let position = Position { x, y };
                 forest.grid.insert(
-                    (position.x, position.y),
-                    Tree {
-                        size: c.to_digit(10).expect("should be a digit") as usize,
-                        parent: Rc::clone(&reference),
-                        position: position,
-                    },
+                    Position { x, y },
+                    Size(c.to_digit(10).expect("should be a digit") as usize),
                 );
             }
         }
         forest
     }
 }
-
 #[cfg(test)]
 mod tests {
-    use super::Forest;
+    use super::{Direction, Forest};
 
     const INPUT: &'static str = "30373
 25512
@@ -135,19 +134,28 @@ mod tests {
     #[test]
     fn parse() {
         let forest = Forest::from(INPUT);
-        // println!("{forest:#?}");
-        let first = forest.grid.get(&(0, 0)).unwrap();
-        let second = forest.grid.get(&(1, 0)).unwrap();
-        let somewhere = forest.grid.get(&(3, 4)).unwrap();
-        println!("somewhere:\n{somewhere:#?}");
-        // println!("first:\n{first:#?}");
-        // println!("second:\n{second:#?}");
-        // println!("first(left):\n{:#?}", first.left());
-        // println!("first(right):\n{:#?}", first.right());
-        // println!("second(left):\n{:#?}", second.left());
-        // println!("second(right):\n{:#?}", second.right());
-        assert_eq!(first.left(), None);
-        assert_eq!(first.right(), Some(second));
-        assert_eq!(second.left(), Some(first));
+        println!("{forest:#?}");
+        assert_eq!(forest.bounds.width, 5);
+        assert_eq!(forest.bounds.height, 5);
+    }
+
+    #[test]
+    fn neighbors() {
+        let forest = Forest::from(INPUT);
+        let at = (0, 0);
+        let neighbors = forest.neighbors(at.into(), Direction::Left);
+        assert_eq!(neighbors.len(), 0);
+        let at = (1, 0);
+        let neighbors = forest.neighbors(at.into(), Direction::Left);
+        assert_eq!(neighbors.len(), 1);
+        let at = (1, 0);
+        let neighbors = forest.neighbors(at.into(), Direction::Right);
+        assert_eq!(neighbors.len(), 3);
+        let at = (0, 3);
+        let neighbors = forest.neighbors(at.into(), Direction::Up);
+        assert_eq!(neighbors.len(), 3);
+        let at = (0, 3);
+        let neighbors = forest.neighbors(at.into(), Direction::Down);
+        assert_eq!(neighbors.len(), 1);
     }
 }
