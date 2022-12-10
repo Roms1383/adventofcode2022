@@ -63,6 +63,10 @@ path = "src/day.7.2.rs"
 name = "day-8-1"
 path = "src/day.8.1.rs"
 
+[[bin]]
+name = "day-8-2"
+path = "src/day.8.2.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

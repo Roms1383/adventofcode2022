@@ -110,6 +110,34 @@ impl Forest {
         }
         false
     }
+    fn blocked_at(&self, at: Position, toward: Direction) -> usize {
+        let size = self.size(at);
+        let mut neighbors = vec![];
+        let mut next = at.clone();
+        let mut neighbor_size: &Size;
+        loop {
+            next = next.next(toward);
+            neighbor_size = self.grid.get(&next).unwrap();
+            neighbors.push(self.grid.get(&next).unwrap());
+            if neighbor_size >= size || next.edge(toward, self.bounds) {
+                break;
+            }
+        }
+        neighbors.len()
+    }
+    fn scenic_score(&self, at: Position) -> usize {
+        self.blocked_at(at, Direction::Top)
+            * self.blocked_at(at, Direction::Left)
+            * self.blocked_at(at, Direction::Right)
+            * self.blocked_at(at, Direction::Bottom)
+    }
+    pub fn highest_scenic_score(&self) -> usize {
+        self.positions()
+            .filter(|x| !x.any_edge(self.bounds))
+            .map(|x| self.scenic_score(*x))
+            .max()
+            .expect("find max scenic score")
+    }
     fn neighbors(&self, at: Position, toward: Direction) -> Vec<&Size> {
         if self.edge(at, toward) {
             return Vec::with_capacity(0);
@@ -274,5 +302,16 @@ mod tests {
             }
         }
         assert_eq!(visible_ones, 21);
+    }
+
+    #[test]
+    fn scenic_score() {
+        let forest = Forest::from(INPUT);
+        let at = (2, 3);
+        assert_eq!(forest.blocked_at(at.into(), Direction::Top), 2);
+        assert_eq!(forest.blocked_at(at.into(), Direction::Left), 2);
+        assert_eq!(forest.blocked_at(at.into(), Direction::Bottom), 1);
+        assert_eq!(forest.blocked_at(at.into(), Direction::Right), 2);
+        assert_eq!(forest.scenic_score(at.into()), 8);
     }
 }
