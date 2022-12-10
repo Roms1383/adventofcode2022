@@ -258,6 +258,12 @@ impl FileSystem {
             .filter(|x| self.find_nested_files(&x.path()).size() <= max)
             .collect()
     }
+    pub fn find_heavy_dirs(&self, min: usize) -> Vec<&Folder> {
+        self.find_dirs()
+            .into_iter()
+            .filter(|x| self.find_nested_files(&x.path()).size() >= min)
+            .collect()
+    }
     pub fn dirs_size(&self, dirs: Vec<&Folder>) -> usize {
         dirs.iter()
             .map(|x| self.find_nested_files(&x.path()).size())
@@ -277,6 +283,32 @@ impl FileSystem {
                 None
             })
             .sum()
+    }
+    pub fn unused_space(&self, total: usize) -> usize {
+        total - self.find_nested_files(&"/".into()).size()
+    }
+    pub fn need_to_free(&self, total: usize, required: usize) -> Option<usize> {
+        let diff = required - self.unused_space(total);
+        if diff > 0 {
+            return Some(diff);
+        }
+        None
+    }
+    pub fn smallest_of_the_biggest(
+        &self,
+        total: usize,
+        required: usize,
+    ) -> Option<(usize, &Folder)> {
+        if let Some(min) = self.need_to_free(total, required) {
+            let mut dirs: Vec<(usize, &Folder)> = self
+                .find_heavy_dirs(min)
+                .into_iter()
+                .map(|x| (self.dir_size(&x.path()), x))
+                .collect();
+            dirs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            return Some(dirs.get(0).expect("dir for deletion").clone());
+        }
+        None
     }
 }
 
@@ -349,6 +381,8 @@ $ ls
         assert_eq!(size, 24_933_642);
         let size = fs.dir_size(&"/".into());
         assert_eq!(size, 48_381_165);
+        assert_eq!(fs.unused_space(70_000_000), 21_618_835);
+        assert_eq!(fs.need_to_free(70_000_000, 30_000_000), Some(8_381_165));
     }
 
     #[test]
@@ -362,5 +396,8 @@ $ ls
         assert_eq!(total, 95_437);
         let total = fs.sum_lightweight_dirs(100_000);
         assert_eq!(total, 95_437);
+        let candidate = fs.smallest_of_the_biggest(70_000_000, 30_000_000);
+        assert_eq!(candidate.unwrap().0, 24_933_642);
+        assert_eq!(candidate.unwrap().1.name, "d");
     }
 }
