@@ -1,5 +1,10 @@
 #![allow(dead_code)]
 
+pub enum Axis {
+    Row,
+    Column,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Direction {
     Up,
@@ -19,16 +24,36 @@ pub enum Convolution {
     DownRight,
 }
 
+impl Motion {
+    fn axis(&self) -> Axis {
+        match self.direction {
+            Direction::Right | Direction::Left => Axis::Row,
+            Direction::Up | Direction::Down => Axis::Column,
+        }
+    }
+}
+
+impl From<Direction> for Convolution {
+    fn from(v: Direction) -> Self {
+        match v {
+            Direction::Up => Convolution::Up,
+            Direction::Down => Convolution::Down,
+            Direction::Left => Convolution::Left,
+            Direction::Right => Convolution::Right,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Motion {
     steps: usize,
     direction: Direction,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
-    x: usize,
-    y: usize,
+    x: isize,
+    y: isize,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -41,6 +66,30 @@ pub struct Manager {
     head: Head,
     tail: Tail,
     visited: Vec<Position>,
+}
+
+impl Manager {
+    fn do_motion(&mut self, motion: &Motion) {
+        for step in 0..motion.steps {
+            self.head.0 = self.head.as_ref().next(&motion.direction.into());
+            if !self.tail.0.touching(&self.head.0) {
+                let convolution = if self.tail.0.aligned(&self.head.0, &motion.axis()) {
+                    motion.direction.into()
+                } else {
+                    // diagonal motion
+                    todo!()
+                };
+                let position = self.tail.as_ref().next(&convolution);
+                self.tail.0 = position;
+                self.record_tail_visited(&position);
+            }
+        }
+    }
+    fn record_tail_visited(&mut self, at: &Position) {
+        if !self.visited.contains(at) {
+            self.visited.push(at.clone());
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -158,6 +207,19 @@ impl Adjacent for Position {
     fn adjacent(&self, related: &Self) -> bool {
         self.adjacent_positions().iter().any(|x| x.overlap(related))
     }
+}
+
+impl Aligned for Position {
+    fn aligned(&self, related: &Self, axis: &Axis) -> bool {
+        match axis {
+            Axis::Row => self.y == related.y,
+            Axis::Column => self.x == related.x,
+        }
+    }
+}
+
+pub trait Aligned {
+    fn aligned(&self, related: &Self, axis: &Axis) -> bool;
 }
 
 pub trait Next {
