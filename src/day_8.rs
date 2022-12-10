@@ -1,58 +1,39 @@
-use std::ops::Add;
-
-use ndarray::prelude::*;
-use num_traits::Zero;
-
 #[derive(Debug, Clone)]
-pub struct Tree(usize);
-
-impl Zero for Tree {
-    fn zero() -> Self {
-        Self(0)
-    }
-
-    fn is_zero(&self) -> bool {
-        self.0 == 0
-    }
-}
-
-impl Add for Tree {
-    type Output = Tree;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Tree(self.0 + rhs.0)
-    }
+pub struct Tree {
+    x: usize,
+    y: usize,
+    size: usize,
 }
 
 #[derive(Debug)]
-pub struct Forest(Array2<Tree>);
-
-impl From<Forest> for Array2<usize> {
-    fn from(v: Forest) -> Self {
-        v.0.mapv(|a: Tree| a.0)
-    }
-}
+pub struct Forest(Vec<Vec<Tree>>);
 
 impl From<&str> for Forest {
     fn from(v: &str) -> Self {
         let h = v.lines().clone().count();
-        let mut peekable = v.lines().peekable();
-        let w = peekable.peek().unwrap().len();
-        let mut a = Array2::<Tree>::zeros((h, w));
-        for mut row in a.axis_iter_mut(Axis(0)) {
-            let line = peekable.next().unwrap();
-            for (idx, c) in line.chars().enumerate() {
-                row[idx] = Tree(c.to_digit(10).unwrap() as usize);
+        let w = v.lines().clone().next().unwrap().len();
+        let mut row: Vec<Tree> = Vec::with_capacity(w);
+        let mut grid = Vec::with_capacity(h);
+        let mut y = 0;
+        for line in v.lines() {
+            for (x, c) in line.chars().enumerate() {
+                row.push(Tree {
+                    x,
+                    y,
+                    size: c.to_digit(10).expect("should be a digit") as usize,
+                })
             }
+            grid.push(row.clone());
+            row.clear();
+            y += 1;
         }
-        Self(a)
+        Forest(grid)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Forest;
-    use ndarray::{arr2, Array2};
 
     const INPUT: &'static str = "30373
 25512
@@ -63,16 +44,7 @@ mod tests {
     #[test]
     fn parse() {
         let forest = Forest::from(INPUT);
-        let raw = Array2::<usize>::from(forest);
-        assert_eq!(
-            raw,
-            arr2(&[
-                [3, 0, 3, 7, 3],
-                [2, 5, 5, 1, 2],
-                [6, 5, 3, 3, 2],
-                [3, 3, 5, 4, 9],
-                [3, 5, 3, 9, 0],
-            ])
-        );
+        assert_eq!(forest.0.get(0).unwrap().len(), 5);
+        assert_eq!(forest.0.len(), 5);
     }
 }
