@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+const KNOTS_LENGTH: usize = 10;
+
 use colored::Colorize;
 
 pub enum Axis {
@@ -135,26 +137,87 @@ impl std::fmt::Display for Tail {
 #[derive(Debug, Clone, Copy)]
 pub struct Head(Position);
 
+#[derive(Debug, Clone)]
+pub struct Knots(Vec<Position>);
+
+impl Default for Position {
+    fn default() -> Self {
+        Self { x: 0, y: 0 }
+    }
+}
+
+impl Default for Knots {
+    fn default() -> Self {
+        let mut knots = Vec::with_capacity(KNOTS_LENGTH);
+        for _ in 0..knots.capacity() {
+            knots.push(Position::default());
+        }
+        Self(knots)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Tail(Position);
 
+#[derive(Debug, PartialEq)]
+pub enum Mode {
+    Duo,
+    Snake,
+}
+
 pub struct Manager {
     head: Head,
+    knots: Option<Knots>,
     tail: Tail,
     visited: Vec<Position>,
 }
 
-impl Default for Manager {
-    fn default() -> Self {
+impl Manager {
+    pub fn new(mode: Mode) -> Self {
         Self {
-            head: Head(Position { x: 0, y: 0 }),
-            tail: Tail(Position { x: 0, y: 0 }),
+            head: Head(Position::default()),
+            tail: Tail(Position::default()),
+            knots: if mode == Mode::Duo {
+                None
+            } else {
+                Some(Knots::default())
+            },
             visited: vec![],
         }
     }
 }
 
 impl Manager {
+    fn do_motion_for_many(&mut self, motion: &Motion) {
+        for _ in 0..motion.steps {
+            self.head.0 = self.head.as_ref().next(&motion.direction.into());
+            let leader = &mut self.head.0;
+            let knots = &mut self.knots.as_mut().unwrap().0;
+            for current_follower in 0..knots.len() {
+                let follower = knots.get_mut(current_follower).unwrap();
+                if !follower.touching(&leader) {
+                    let convolution = if follower.aligned(&leader, &motion.axis()) {
+                        motion.direction.into()
+                    } else {
+                        follower.should_move(&leader, &motion.direction)
+                    };
+                    let position = follower.next(&convolution);
+                    *follower = position;
+                    *leader = knots.get_mut(current_follower).unwrap().clone();
+                }
+            }
+            if !self.tail.0.touching(&leader) {
+                let convolution = if self.tail.0.aligned(&leader, &motion.axis()) {
+                    motion.direction.into()
+                } else {
+                    self.tail.0.should_move(&leader, &motion.direction)
+                };
+                let position = self.tail.as_ref().next(&convolution);
+                self.tail.0 = position;
+                self.record_tail_visited(&position);
+            }
+        }
+    }
     fn do_motion(&mut self, motion: &Motion) {
         println!("{motion} (head: {}, tail: {})", self.head, self.tail);
         for _ in 0..motion.steps {
@@ -182,7 +245,11 @@ impl Manager {
     pub fn do_motions(&mut self, motions: &Motions) {
         self.visited.push(self.tail.0);
         for motion in motions.0.iter() {
-            self.do_motion(motion);
+            if self.knots.is_none() {
+                self.do_motion(motion);
+            } else {
+                self.do_motion_for_many(motion);
+            }
         }
     }
     pub fn total_tail_visited(&self) -> usize {
@@ -387,6 +454,7 @@ mod tests {
     use super::Convolution;
     use super::Direction;
     use super::Manager;
+    use super::Mode;
     use super::Motion;
     use super::Motions;
     use super::Position;
@@ -431,37 +499,10 @@ R 2";
         );
     }
 
-    // #[test]
-    // fn should_move() {
-    //     let head: Position = (3, -2).into();
-    //     let tail: Position = (2, 0).into();
-    //     let direction: Direction = Direction::Up;
-    //     let position = tail.should_move(&head, &direction);
-    //     assert_eq!(position, Convolution::UpLeft);
-
-    //     let head: Position = (2, -2).into();
-    //     let tail: Position = (3, 0).into();
-    //     let direction: Direction = Direction::Up;
-    //     let position = tail.should_move(&head, &direction);
-    //     assert_eq!(position, Convolution::UpRight);
-
-    //     let head: Position = (3, 2).into();
-    //     let tail: Position = (2, 0).into();
-    //     let direction: Direction = Direction::Down;
-    //     let position = tail.should_move(&head, &direction);
-    //     assert_eq!(position, Convolution::DownLeft);
-
-    //     let head: Position = (2, 2).into();
-    //     let tail: Position = (3, 0).into();
-    //     let direction: Direction = Direction::Down;
-    //     let position = tail.should_move(&head, &direction);
-    //     assert_eq!(position, Convolution::DownRight);
-    // }
-
     #[test]
     fn visited() {
         let motions = Motions::from(INPUT);
-        let mut manager = Manager::default();
+        let mut manager = Manager::new(Mode::Duo);
         manager.do_motions(&motions);
         assert_eq!(manager.visited.len(), 13);
     }
