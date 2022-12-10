@@ -1,77 +1,29 @@
 #![allow(dead_code)]
 
-use std::{
-    borrow::Borrow,
-    cell::{Ref, RefCell},
-    ops::Deref,
-    rc::Rc,
-};
+#[derive(Debug, Clone)]
+pub enum Resource {
+    File(File),
+    Folder(Folder),
+}
 
 #[derive(Debug, Clone)]
 pub struct File {
     name: String,
     size: usize,
+    parent: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct Folder {
-    children: Vec<Rc<Resource>>,
-    parent: Option<Rc<RefCell<Folder>>>,
+    parent: Option<String>,
     path: String,
 }
 
 impl Default for Folder {
     fn default() -> Self {
         Self {
-            children: vec![],
             parent: None,
             path: String::from("/"),
-        }
-    }
-}
-
-impl Folder {
-    fn touch(&mut self, file: &File) {
-        println!("touch {file:#?}");
-        self.children.push(Rc::new(Resource::File(file.clone())));
-    }
-    fn mkdir(&mut self, folder: &Folder) {
-        println!("mkdir {folder:#?}");
-        self.children
-            .push(Rc::new(Resource::Folder(folder.clone())));
-    }
-    fn populate(&mut self, stdout: StdOut) {
-        let mut current: Folder = self.to_owned();
-        for line in stdout.0.into_iter() {
-            match line {
-                StdOutLine::Cmd(cmd) => match cmd {
-                    Command::To(path) => {
-                        let folder = current
-                            .children
-                            .into_iter()
-                            .find_map(|x| match &*x {
-                                Resource::File(_) => None,
-                                Resource::Folder(folder) => {
-                                    if folder.path.as_str() == path.as_str() {
-                                        return Some(folder.borrow().clone());
-                                    } else {
-                                        return None;
-                                    }
-                                }
-                            })
-                            .unwrap();
-                        current = folder.clone();
-                    }
-                    Command::Root => {
-                        while let Some(parent) = current.parent {
-                            current = (&*parent).borrow().clone();
-                        }
-                    }
-                    Command::Back => current = (&*self.parent.clone().unwrap()).borrow().clone(),
-                    Command::Ls => {}
-                },
-                StdOutLine::Output(resource) => self.children.push(Rc::new(resource)),
-            }
         }
     }
 }
@@ -82,20 +34,128 @@ pub enum Command {
     Root,
     Back,
     Ls,
+    Dir(String),
+    File(usize, String),
 }
 
 #[derive(Debug)]
-pub enum Resource {
-    File(File),
-    Folder(Folder),
+pub struct StdOut(Vec<Command>);
+
+#[derive(Debug)]
+pub struct FileSystem {
+    tree: Vec<Resource>,
+    current: String,
 }
 
-impl Resource {
-    fn is_dir(&self) -> bool {
-        match self {
-            Resource::File(_) => false,
-            Resource::Folder(_) => true,
+impl Default for FileSystem {
+    fn default() -> Self {
+        Self {
+            tree: vec![Resource::Folder(Folder::default())],
+            current: "/".into(),
         }
+    }
+}
+
+impl From<&str> for StdOut {
+    fn from(v: &str) -> Self {
+        let mut fs = vec![];
+        for line in v.lines() {
+            fs.push(Command::from(line));
+        }
+        Self(fs)
+    }
+}
+
+impl From<&str> for Command {
+    fn from(v: &str) -> Self {
+        if v.starts_with("$") {
+            let inner = &v["$".len() + 1..];
+            if inner.starts_with("ls") {
+                return Command::Ls;
+            }
+            if inner.starts_with("cd") {
+                if inner.ends_with('/') {
+                    return Command::Root;
+                }
+                if inner.ends_with("..") {
+                    return Command::Back;
+                }
+                return Command::To(inner["cd".len() + 1..].to_string());
+            }
+        }
+        if v.starts_with("dir") {
+            return Command::Dir(v["dir".len() + 1..].to_string());
+        }
+        let parts: Vec<&str> = v.split(' ').collect();
+        assert!(parts.len() == 2);
+        let size = parts
+            .first()
+            .expect("filesize")
+            .parse::<usize>()
+            .expect("should be a digit");
+        let name = parts.get(1).expect("filename");
+        return Command::File(size, name.to_string());
+    }
+}
+
+impl From<StdOut> for FileSystem {
+    fn from(v: StdOut) -> Self {
+        let mut root = FileSystem::default();
+        for line in v.0.iter() {
+            match line {
+                Command::To(dir) => {
+                    root.current = if root.current.len() == 1 {
+                        format!("{}{}", root.current, dir)
+                    } else {
+                        format!("{}/{}", root.current, dir)
+                    };
+                }
+                Command::Root => {
+                    root.current = "/".into();
+                }
+                Command::Back => {
+                    let last = root.current.rfind('/').expect("find slash");
+                    if last > 1 {
+                        root.current = root.current[0..last - 1].into();
+                    }
+                }
+                Command::Ls => {}
+                Command::Dir(path) => {
+                    println!("dir {path}");
+                    root.tree.push(Resource::Folder(Folder {
+                        path: path.clone(),
+                        parent: Some(root.current.clone()),
+                    }));
+                }
+                Command::File(size, name) => {
+                    println!("file root.current {}", root.current);
+                    root.tree.push(Resource::File(File {
+                        name: name.clone(),
+                        size: *size,
+                        parent: root.current.clone(),
+                    }));
+                }
+            };
+        }
+        root
+    }
+}
+
+impl File {
+    fn is_in(&self, path: &str) -> bool {
+        self.parent == path
+    }
+    fn is_nested_in(&self, path: &str) -> bool {
+        self.parent.contains(path)
+    }
+}
+
+impl Folder {
+    fn is_in(&self, path: &str) -> bool {
+        self.parent.is_some() && self.parent.as_ref().unwrap() == path
+    }
+    fn is_nested_in(&self, path: &str) -> bool {
+        self.parent.is_some() && self.parent.as_ref().unwrap().contains(path)
     }
 }
 
@@ -103,99 +163,110 @@ pub trait Size {
     fn size(&self) -> usize;
 }
 
-impl Size for File {
+impl Size for Vec<&File> {
     fn size(&self) -> usize {
-        self.size
+        self.iter().map(|x| x.size).sum()
     }
 }
 
-impl Size for Folder {
+impl Size for FileSystem {
     fn size(&self) -> usize {
-        self.children.iter().map(|x| x.size()).sum::<usize>()
+        let files: Vec<&File> = self
+            .tree
+            .iter()
+            .filter_map(|x| match x {
+                Resource::File(file) => Some(file),
+                Resource::Folder(_) => None,
+            })
+            .collect();
+        files.iter().map(|x| x.size).sum()
     }
 }
 
-impl Size for Resource {
-    fn size(&self) -> usize {
-        match self {
-            Resource::File(file) => file.size(),
-            Resource::Folder(folder) => folder.size(),
-        }
+impl FileSystem {
+    pub fn find_nested_files(&self, path: &str) -> Vec<&File> {
+        self.tree
+            .iter()
+            .filter_map(|x| match x {
+                Resource::File(file) => {
+                    if file.is_nested_in(path) {
+                        Some(file)
+                    } else {
+                        None
+                    }
+                }
+                Resource::Folder(_) => None,
+            })
+            .collect()
     }
-}
-
-#[derive(Debug)]
-pub enum StdOutLine {
-    Cmd(Command),
-    Output(Resource),
-}
-
-#[derive(Debug)]
-pub struct StdOut(Vec<StdOutLine>);
-
-impl From<&str> for StdOut {
-    fn from(v: &str) -> Self {
-        let mut stdout = vec![];
-        for line in v.lines() {
-            stdout.push(StdOutLine::from(line));
-        }
-        Self(stdout)
+    pub fn find_files(&self, path: &str) -> Vec<&File> {
+        self.tree
+            .iter()
+            .filter_map(|x| match x {
+                Resource::File(file) => {
+                    if file.is_in(path) {
+                        Some(file)
+                    } else {
+                        None
+                    }
+                }
+                Resource::Folder(_) => None,
+            })
+            .collect()
     }
-}
-
-impl From<&str> for StdOutLine {
-    fn from(v: &str) -> Self {
-        if v.starts_with('$') {
-            return StdOutLine::Cmd(Command::from(v));
-        }
-        if v.starts_with("dir") {
-            return StdOutLine::Output(Resource::Folder(Folder::from(v)));
-        }
-        StdOutLine::Output(Resource::File(File::from(v)))
+    pub fn find_nested_dirs(&self, path: &str) -> Vec<&Folder> {
+        self.tree
+            .iter()
+            .filter_map(|x| match x {
+                Resource::File(_) => None,
+                Resource::Folder(dir) => {
+                    if dir.is_nested_in(path) {
+                        Some(dir)
+                    } else {
+                        None
+                    }
+                }
+            })
+            .collect()
     }
-}
-
-impl From<&str> for Folder {
-    fn from(v: &str) -> Self {
-        Self {
-            children: vec![],
-            parent: None,
-            path: v[4..].to_string(),
-        }
+    pub fn find_dirs(&self) -> Vec<&Folder> {
+        self.tree
+            .iter()
+            .filter_map(|x| match x {
+                Resource::File(_) => None,
+                Resource::Folder(dir) => Some(dir),
+            })
+            .collect()
     }
-}
-
-impl From<&str> for File {
-    fn from(v: &str) -> Self {
-        let parts: Vec<&str> = v.split(" ").collect();
-        assert!(parts.len() == 2);
-        let size = parts
-            .get(0)
-            .expect("filesize")
-            .parse()
-            .expect("should be a digit");
-        let name = parts.get(1).expect("filename").deref();
-        Self {
-            name: name.into(),
-            size,
-        }
+    pub fn find_topmost_dirs(&self) -> Vec<&Folder> {
+        self.tree
+            .iter()
+            .filter_map(|x| match x {
+                Resource::File(_) => None,
+                Resource::Folder(dir) => match dir.parent {
+                    Some(ref parent) if parent.as_str() == "/" => Some(dir),
+                    _ => None,
+                },
+            })
+            .collect()
     }
-}
-
-impl From<&str> for Command {
-    fn from(v: &str) -> Self {
-        match &v[2..] {
-            "ls" => Command::Ls,
-            "cd .." => Command::Back,
-            "cd /" => Command::Root,
-            _ => Command::To(v[5..].to_string()),
-        }
+    pub fn find_lightweight_dirs(&self, max: usize) -> Vec<&Folder> {
+        self.find_dirs()
+            .into_iter()
+            .filter(|x| {
+                let files = self.find_nested_files(x.path.as_str());
+                let size = files.size();
+                size <= max
+            })
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, File, Folder, StdOut};
+    use crate::day_7::{FileSystem, StdOut};
+
+    use super::{Command, File, Folder};
 
     const INPUT: &'static str = "$ cd /
 $ ls
@@ -240,21 +311,20 @@ $ ls
         assert_eq!(cmd, Command::To("e".into()));
 
         let line = "dir a";
-        let folder = Folder::from(line);
-        assert_eq!(folder.path.as_str(), "a");
+        let folder = Command::from(line);
+        assert_eq!(folder, Command::Dir("a".into()));
 
         let line = "8033020 d.log";
-        let file = File::from(line);
-        assert_eq!(file.size, 8033020);
-        assert_eq!(file.name.as_str(), "d.log");
+        let file = Command::from(line);
+        assert_eq!(file, Command::File(8033020, "d.log".into()))
     }
 
     #[test]
-    fn sample() {
+    fn lightweight() {
         let stdout = StdOut::from(INPUT);
-        println!("{stdout:#?}");
-        let mut root = Folder::default();
-        root.populate(stdout);
-        assert!(false);
+        let fs = FileSystem::from(stdout);
+        let lightweight = fs.find_lightweight_dirs(100_000);
+        let paths: Vec<&str> = lightweight.iter().map(|x| x.path.as_str()).collect();
+        assert_eq!(paths, vec!["a", "e"]);
     }
 }
