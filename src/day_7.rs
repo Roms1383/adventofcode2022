@@ -8,6 +8,10 @@ pub enum Resource {
     Folder(Folder),
 }
 
+pub trait Nested {
+    fn is_nested_in(&self, parent: &str) -> bool;
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FullPath(String);
 
@@ -29,12 +33,9 @@ impl AsRef<str> for FullPath {
     }
 }
 
-impl FullPath {
-    pub fn contains_str(&self, v: &str) -> bool {
-        self.0.contains(v)
-    }
-    pub fn starts_with_str(&self, v: &str) -> bool {
-        self.0.starts_with(v)
+impl Nested for FullPath {
+    fn is_nested_in(&self, parent: &str) -> bool {
+        self.0.starts_with(parent)
     }
 }
 
@@ -161,9 +162,13 @@ impl From<StdOut> for FileSystem {
                     root.current = "/".into();
                 }
                 Command::Back => {
-                    let last = root.current.rfind('/').expect("find slash");
-                    if last > 1 {
-                        root.current = root.current[0..last - 1].into();
+                    if root.current != "/" {
+                        let last = root.current.rfind('/').expect("find slash");
+                        if last == 0 {
+                            root.current = "/".into();
+                        } else {
+                            root.current = root.current[0..last].into();
+                        }
                     }
                 }
                 Command::Ls => {}
@@ -190,8 +195,11 @@ impl File {
     fn is_in(&self, path: &FullPath) -> bool {
         &self.parent == path
     }
-    fn is_nested_in(&self, path: &FullPath) -> bool {
-        self.parent.starts_with_str(path.as_ref())
+}
+
+impl Nested for File {
+    fn is_nested_in(&self, parent: &str) -> bool {
+        self.parent.is_nested_in(parent)
     }
 }
 
@@ -225,8 +233,7 @@ impl FileSystem {
             .iter()
             .filter_map(|x| match x {
                 Resource::File(file) => {
-                    // println!("[find_nested_files] search for nested file at {}", path);
-                    if file.is_nested_in(path) {
+                    if file.is_nested_in(path.as_ref()) {
                         Some(file)
                     } else {
                         None
@@ -348,7 +355,6 @@ $ ls
     fn lightweight() {
         let stdout = StdOut::from(INPUT);
         let fs = FileSystem::from(stdout);
-        println!("{fs:#?}");
         let lightweight = fs.find_lightweight_dirs(100_000);
         let names: Vec<&str> = lightweight.iter().map(|x| x.name.as_str()).collect();
         assert_eq!(names, vec!["a", "e"]);
@@ -356,6 +362,5 @@ $ ls
         assert_eq!(total, 95_437);
         let total = fs.sum_lightweight_dirs(100_000);
         assert_eq!(total, 95_437);
-        // assert!(false);
     }
 }
