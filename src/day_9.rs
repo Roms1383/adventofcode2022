@@ -90,6 +90,11 @@ impl Manager {
             self.visited.push(at.clone());
         }
     }
+    fn do_motions(&mut self, motions: &Motions) {
+        for motion in motions.0.iter() {
+            self.do_motion(motion);
+        }
+    }
 }
 
 #[derive(Debug)]
