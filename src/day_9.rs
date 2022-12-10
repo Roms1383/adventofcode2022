@@ -15,6 +15,17 @@ pub enum Direction {
     Right,
 }
 
+impl std::fmt::Display for Motion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} {}",
+            self.direction.as_ref().yellow(),
+            self.steps.to_string().yellow()
+        )
+    }
+}
+
 impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let symbol = match self {
@@ -145,20 +156,19 @@ impl Default for Manager {
 
 impl Manager {
     fn do_motion(&mut self, motion: &Motion) {
-        println!("{motion:#?} (head: {}, tail: {})", self.head, self.tail);
+        println!("{motion} (head: {}, tail: {})", self.head, self.tail);
         for _ in 0..motion.steps {
             self.head.0 = self.head.as_ref().next(&motion.direction.into());
-            println!("moved head ({})", self.head);
+            println!("{}  head ({})", motion.direction, self.head);
             if !self.tail.0.touching(&self.head.0) {
                 let convolution = if self.tail.0.aligned(&self.head.0, &motion.axis()) {
                     motion.direction.into()
                 } else {
                     self.tail.0.should_move(&self.head.0, &motion.direction)
                 };
-                println!("{convolution}");
                 let position = self.tail.as_ref().next(&convolution);
                 self.tail.0 = position;
-                println!("moved tail ({})", self.tail);
+                println!("{convolution}  tail ({})", self.tail);
                 self.record_tail_visited(&position);
             }
         }
@@ -169,10 +179,14 @@ impl Manager {
             self.visited.push(at.clone());
         }
     }
-    fn do_motions(&mut self, motions: &Motions) {
+    pub fn do_motions(&mut self, motions: &Motions) {
+        self.visited.push(self.tail.0);
         for motion in motions.0.iter() {
             self.do_motion(motion);
         }
+    }
+    pub fn total_tail_visited(&self) -> usize {
+        self.visited.len()
     }
 }
 
@@ -187,6 +201,17 @@ impl From<&str> for Direction {
             "U" => Direction::Up,
             "D" => Direction::Down,
             _ => panic!("unknown direction"),
+        }
+    }
+}
+
+impl AsRef<str> for Direction {
+    fn as_ref(&self) -> &str {
+        match self {
+            Direction::Up => "U",
+            Direction::Down => "D",
+            Direction::Left => "L",
+            Direction::Right => "R",
         }
     }
 }
@@ -304,22 +329,15 @@ impl Aligned for Position {
 
 impl Strategy for Position {
     fn should_move(&self, followed: &Self, direction: &Direction) -> Convolution {
-        println!(
-            "{} head: {}, tail: {}, direction: {}",
-            "should move?".yellow(),
-            followed,
-            self,
-            direction
-        );
         match direction {
-            Direction::Up if self.x < followed.x => Convolution::UpLeft,
-            Direction::Up if self.x > followed.x => Convolution::UpRight,
+            Direction::Up if self.x < followed.x => Convolution::UpRight,
+            Direction::Up if self.x > followed.x => Convolution::UpLeft,
             Direction::Down if self.x < followed.x => Convolution::DownLeft,
             Direction::Down if self.x > followed.x => Convolution::DownRight,
-            Direction::Left if self.y < followed.y => Convolution::UpLeft,
-            Direction::Left if self.y > followed.y => Convolution::DownLeft,
-            Direction::Right if self.y < followed.y => Convolution::UpRight,
-            Direction::Right if self.y > followed.y => Convolution::DownRight,
+            Direction::Left if self.y < followed.y => Convolution::DownLeft,
+            Direction::Left if self.y > followed.y => Convolution::UpLeft,
+            Direction::Right if self.y < followed.y => Convolution::DownRight,
+            Direction::Right if self.y > followed.y => Convolution::UpRight,
             _ => panic!("should not happen"),
         }
     }
