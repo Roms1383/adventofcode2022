@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use colored::Colorize;
+
 pub enum Axis {
     Row,
     Column,
@@ -13,6 +15,19 @@ pub enum Direction {
     Right,
 }
 
+impl std::fmt::Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let symbol = match self {
+            Self::Up => "⬆️".to_string(),
+            Self::Down => "⬇️".to_string(),
+            Self::Left => "⬅️".to_string(),
+            Self::Right => "➡️".to_string(),
+        };
+        write!(f, "{}", symbol)
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Convolution {
     Up,
     Down,
@@ -24,12 +39,34 @@ pub enum Convolution {
     DownRight,
 }
 
+impl std::fmt::Display for Convolution {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let symbol = match self {
+            Self::Up => "⬆️".to_string(),
+            Self::Down => "⬇️".to_string(),
+            Self::Left => "⬅️".to_string(),
+            Self::Right => "➡️".to_string(),
+            Self::UpLeft => "↖️".to_string(),
+            Self::UpRight => "↗️".to_string(),
+            Self::DownLeft => "↙️".to_string(),
+            Self::DownRight => "↘️".to_string(),
+        };
+        write!(f, "{}", symbol)
+    }
+}
+
 impl Motion {
     fn axis(&self) -> Axis {
         match self.direction {
             Direction::Right | Direction::Left => Axis::Row,
             Direction::Up | Direction::Down => Axis::Column,
         }
+    }
+}
+
+impl From<(isize, isize)> for Position {
+    fn from(v: (isize, isize)) -> Self {
+        Self { x: v.0, y: v.1 }
     }
 }
 
@@ -56,6 +93,34 @@ pub struct Position {
     y: isize,
 }
 
+impl std::fmt::Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "x: {} y: {}", self.x, self.y)
+    }
+}
+
+impl std::fmt::Display for Head {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "x: {} y: {}",
+            self.0.x.to_string().blue(),
+            self.0.y.to_string().blue()
+        )
+    }
+}
+
+impl std::fmt::Display for Tail {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "x: {} y: {}",
+            self.0.x.to_string().red(),
+            self.0.y.to_string().red()
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Head(Position);
 
@@ -68,22 +133,36 @@ pub struct Manager {
     visited: Vec<Position>,
 }
 
+impl Default for Manager {
+    fn default() -> Self {
+        Self {
+            head: Head(Position { x: 0, y: 0 }),
+            tail: Tail(Position { x: 0, y: 0 }),
+            visited: vec![],
+        }
+    }
+}
+
 impl Manager {
     fn do_motion(&mut self, motion: &Motion) {
-        for step in 0..motion.steps {
+        println!("{motion:#?} (head: {}, tail: {})", self.head, self.tail);
+        for _ in 0..motion.steps {
             self.head.0 = self.head.as_ref().next(&motion.direction.into());
+            println!("moved head ({})", self.head);
             if !self.tail.0.touching(&self.head.0) {
                 let convolution = if self.tail.0.aligned(&self.head.0, &motion.axis()) {
                     motion.direction.into()
                 } else {
-                    // diagonal motion
-                    todo!()
+                    self.tail.0.should_move(&self.head.0, &motion.direction)
                 };
+                println!("{convolution}");
                 let position = self.tail.as_ref().next(&convolution);
                 self.tail.0 = position;
+                println!("moved tail ({})", self.tail);
                 self.record_tail_visited(&position);
             }
         }
+        println!("\n");
     }
     fn record_tail_visited(&mut self, at: &Position) {
         if !self.visited.contains(at) {
@@ -223,6 +302,29 @@ impl Aligned for Position {
     }
 }
 
+impl Strategy for Position {
+    fn should_move(&self, followed: &Self, direction: &Direction) -> Convolution {
+        println!(
+            "{} head: {}, tail: {}, direction: {}",
+            "should move?".yellow(),
+            followed,
+            self,
+            direction
+        );
+        match direction {
+            Direction::Up if self.x < followed.x => Convolution::UpLeft,
+            Direction::Up if self.x > followed.x => Convolution::UpRight,
+            Direction::Down if self.x < followed.x => Convolution::DownLeft,
+            Direction::Down if self.x > followed.x => Convolution::DownRight,
+            Direction::Left if self.y < followed.y => Convolution::UpLeft,
+            Direction::Left if self.y > followed.y => Convolution::DownLeft,
+            Direction::Right if self.y < followed.y => Convolution::UpRight,
+            Direction::Right if self.y > followed.y => Convolution::DownRight,
+            _ => panic!("should not happen"),
+        }
+    }
+}
+
 pub trait Aligned {
     fn aligned(&self, related: &Self, axis: &Axis) -> bool;
 }
@@ -256,11 +358,21 @@ pub trait AdjacentPositions {
     fn adjacent_positions(&self) -> Vec<Position>;
 }
 
+pub trait Strategy {
+    fn should_move(&self, followed: &Self, direction: &Direction) -> Convolution;
+}
+
 #[cfg(test)]
 mod tests {
+    #![allow(unused_imports)]
+
+    use super::Convolution;
     use super::Direction;
+    use super::Manager;
     use super::Motion;
     use super::Motions;
+    use super::Position;
+    use super::Strategy;
 
     const INPUT: &'static str = "R 4
 U 4
@@ -299,5 +411,40 @@ R 2";
                 steps: 1
             }
         );
+    }
+
+    // #[test]
+    // fn should_move() {
+    //     let head: Position = (3, -2).into();
+    //     let tail: Position = (2, 0).into();
+    //     let direction: Direction = Direction::Up;
+    //     let position = tail.should_move(&head, &direction);
+    //     assert_eq!(position, Convolution::UpLeft);
+
+    //     let head: Position = (2, -2).into();
+    //     let tail: Position = (3, 0).into();
+    //     let direction: Direction = Direction::Up;
+    //     let position = tail.should_move(&head, &direction);
+    //     assert_eq!(position, Convolution::UpRight);
+
+    //     let head: Position = (3, 2).into();
+    //     let tail: Position = (2, 0).into();
+    //     let direction: Direction = Direction::Down;
+    //     let position = tail.should_move(&head, &direction);
+    //     assert_eq!(position, Convolution::DownLeft);
+
+    //     let head: Position = (2, 2).into();
+    //     let tail: Position = (3, 0).into();
+    //     let direction: Direction = Direction::Down;
+    //     let position = tail.should_move(&head, &direction);
+    //     assert_eq!(position, Convolution::DownRight);
+    // }
+
+    #[test]
+    fn visited() {
+        let motions = Motions::from(INPUT);
+        let mut manager = Manager::default();
+        manager.do_motions(&motions);
+        assert_eq!(manager.visited.len(), 13);
     }
 }
