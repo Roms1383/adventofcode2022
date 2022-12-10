@@ -68,4 +68,5 @@ path = "src/day.8.1.rs"
 [dependencies]
 anyhow = "1.0.66"
 ndarray = "0.15.6"
+num-traits = "0.2"
 regex = "1.7.0"
