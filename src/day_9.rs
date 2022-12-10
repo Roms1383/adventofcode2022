@@ -191,7 +191,7 @@ impl Manager {
     fn do_motion_for_many(&mut self, motion: &Motion) {
         for _ in 0..motion.steps {
             self.head.0 = self.head.as_ref().next(&motion.direction.into());
-            let leader = &mut self.head.0;
+            let mut leader = self.head.0.clone();
             let knots = &mut self.knots.as_mut().unwrap().0;
             for current_follower in 0..knots.len() {
                 let follower = knots.get_mut(current_follower).unwrap();
@@ -203,7 +203,9 @@ impl Manager {
                     };
                     let position = follower.next(&convolution);
                     *follower = position;
-                    *leader = knots.get_mut(current_follower).unwrap().clone();
+                }
+                if current_follower > 0 {
+                    leader = knots.get_mut(current_follower - 1).unwrap().clone();
                 }
             }
             if !self.tail.0.touching(&leader) {
@@ -468,6 +470,14 @@ R 4
 D 1
 L 5
 R 2";
+    const LARGER_INPUT: &'static str = "R 5
+U 8
+L 8
+D 3
+R 17
+D 10
+L 25
+U 20";
 
     #[test]
     fn parse() {
@@ -505,5 +515,18 @@ R 2";
         let mut manager = Manager::new(Mode::Duo);
         manager.do_motions(&motions);
         assert_eq!(manager.visited.len(), 13);
+    }
+
+    #[test]
+    fn snake() {
+        let motions = Motions::from(INPUT);
+        let mut manager = Manager::new(Mode::Snake);
+        manager.do_motions(&motions);
+        assert_eq!(manager.visited.len(), 1);
+
+        let motions = Motions::from(LARGER_INPUT);
+        let mut manager = Manager::new(Mode::Snake);
+        manager.do_motions(&motions);
+        assert_eq!(manager.visited.len(), 36);
     }
 }
