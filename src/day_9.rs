@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-const KNOTS_LENGTH: usize = 10;
+const KNOTS_LENGTH: usize = 8;
 
 use colored::Colorize;
 
@@ -134,6 +134,16 @@ impl std::fmt::Display for Tail {
     }
 }
 
+impl std::fmt::Display for Knots {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut acc = "".to_string();
+        for (idx, knot) in self.0.iter().enumerate() {
+            acc.push_str(format!("{} {knot}\n", idx + 1).as_str());
+        }
+        write!(f, "{}", acc)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Head(Position);
 
@@ -189,6 +199,8 @@ impl Manager {
 
 impl Manager {
     fn do_motion_for_many(&mut self, motion: &Motion) {
+        println!("{motion} (head: {}, tail: {})", self.head, self.tail);
+        println!("{}", self.knots.as_ref().unwrap());
         for _ in 0..motion.steps {
             self.head.0 = self.head.as_ref().next(&motion.direction.into());
             let mut leader = self.head.0.clone();
@@ -201,6 +213,7 @@ impl Manager {
                     } else {
                         follower.should_move(&leader, &motion.direction)
                     };
+                    println!("{convolution}");
                     let position = follower.next(&convolution);
                     *follower = position;
                 }
@@ -214,11 +227,16 @@ impl Manager {
                 } else {
                     self.tail.0.should_move(&leader, &motion.direction)
                 };
+                println!("{convolution} (tail)");
                 let position = self.tail.as_ref().next(&convolution);
                 self.tail.0 = position;
                 self.record_tail_visited(&position);
             }
         }
+        println!("then head: {}, tail: {}", self.head, self.tail);
+        println!("{}", self.knots.as_ref().unwrap());
+        println!("visited so far {}", self.visited.len().to_string().yellow());
+        println!("\n");
     }
     fn do_motion(&mut self, motion: &Motion) {
         println!("{motion} (head: {}, tail: {})", self.head, self.tail);
