@@ -332,8 +332,8 @@ impl Strategy for Position {
         match direction {
             Direction::Up if self.x < followed.x => Convolution::UpRight,
             Direction::Up if self.x > followed.x => Convolution::UpLeft,
-            Direction::Down if self.x < followed.x => Convolution::DownLeft,
-            Direction::Down if self.x > followed.x => Convolution::DownRight,
+            Direction::Down if self.x < followed.x => Convolution::DownRight,
+            Direction::Down if self.x > followed.x => Convolution::DownLeft,
             Direction::Left if self.y < followed.y => Convolution::DownLeft,
             Direction::Left if self.y > followed.y => Convolution::UpLeft,
             Direction::Right if self.y < followed.y => Convolution::DownRight,
