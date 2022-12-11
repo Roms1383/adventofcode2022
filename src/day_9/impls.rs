@@ -21,27 +21,30 @@ impl<const LENGTH: usize> Knots<LENGTH> {
     fn do_motion(&mut self, motion: &Motion) {
         println!("{motion}");
         let large = self.knots.len() > 2;
-        if large {
-            println!("before:\n{self}");
-        }
         for _ in 0..motion.steps {
             let knots = self.knots.as_mut();
-            let mut leader;
+            let mut leader: Knot;
             let mut follower;
-            let mut projection: Knot;
             let mut next;
             let mut moved = None;
             let count = knots.len();
+            let mut projection: Knot = knots
+                .get(0)
+                .unwrap()
+                .clone()
+                .0
+                .next(&motion.direction.into())
+                .into();
+            *knots.get_mut(0).unwrap() = projection.clone();
             for current in 0..(count - 1) {
                 next = current + 1;
                 leader = knots.get(current).unwrap().clone();
                 follower = knots.get(next).unwrap().clone();
                 let lead: &Convolution = &motion.direction.into();
-                projection = leader.0.next(lead).into();
+                projection = leader.0.clone().into();
                 if !large {
                     println!("lead: {lead}");
                 }
-                *knots.get_mut(current).unwrap() = projection.clone();
                 if !large {
                     println!("leader moved: {}", knots.get(current).unwrap());
                 }
@@ -168,7 +171,7 @@ impl<const LENGTH: usize> std::fmt::Display for Knots<LENGTH> {
                     acc.push_str(&format!("{} {knot}\n", "T".to_string().yellow()));
                 }
                 _ => {
-                    acc.push_str(&format!("{} {knot}\n", idx + 1));
+                    acc.push_str(&format!("{} {knot}\n", idx));
                 }
             }
         }
