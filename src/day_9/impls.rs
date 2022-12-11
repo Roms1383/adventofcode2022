@@ -1,6 +1,6 @@
 use super::{
-    traits::{Adjacent, AdjacentPositions, Aligned, Next, Overlap, Strategy, Touching},
-    types::{Axis, Convolution, Direction, Knot, Knots, Motion, Motions, Position},
+    traits::{Adjacent, AdjacentPositions, Diagonal, Next, Overlap, Touching, TwoStepsAhead},
+    types::{Convolution, Direction, Knot, Knots, Motion, Motions, Position},
 };
 use colored::Colorize;
 
@@ -49,10 +49,10 @@ impl<const LENGTH: usize> Knots<LENGTH> {
                     println!("leader moved: {}", knots.get(current).unwrap());
                 }
                 if !follower.touching(&projection) {
-                    let follow = if follower.aligned(&projection, &motion.axis()) {
-                        motion.direction.into()
+                    let follow = if let Some(direction) = follower.two_steps_ahead(&leader) {
+                        direction.into()
                     } else {
-                        follower.should_move(&projection, &motion.direction)
+                        follower.diagonal(&projection, &motion.direction)
                     };
                     if !large {
                         println!("follow: {follow}");
@@ -207,15 +207,6 @@ impl AsRef<Position> for Knot {
     }
 }
 
-impl Motion {
-    fn axis(&self) -> Axis {
-        match self.direction {
-            Direction::Right | Direction::Left => Axis::Row,
-            Direction::Up | Direction::Down => Axis::Column,
-        }
-    }
-}
-
 impl From<(isize, isize)> for Position {
     fn from(v: (isize, isize)) -> Self {
         Self { x: v.0, y: v.1 }
@@ -359,39 +350,46 @@ impl Adjacent for Knot {
     }
 }
 
-impl Aligned for Position {
-    fn aligned(&self, related: &Self, axis: &Axis) -> bool {
-        match axis {
-            Axis::Row => self.y == related.y,
-            Axis::Column => self.x == related.x,
+impl TwoStepsAhead for Position {
+    fn two_steps_ahead(&self, leader: &Self) -> Option<Direction> {
+        match true {
+            _ if self.y == leader.y && (self.x + 2) == leader.x => Some(Direction::Right),
+            _ if self.y == leader.y && (self.x - 2) == leader.x => Some(Direction::Left),
+            _ if self.x == leader.x && (self.y + 2) == leader.y => Some(Direction::Down),
+            _ if self.x == leader.x && (self.y - 2) == leader.y => Some(Direction::Up),
+            _ => None,
         }
     }
 }
 
-impl Aligned for Knot {
-    fn aligned(&self, related: &Self, axis: &Axis) -> bool {
-        self.0.aligned(&related.0, axis)
+impl TwoStepsAhead for Knot {
+    fn two_steps_ahead(&self, leader: &Self) -> Option<Direction> {
+        self.0.two_steps_ahead(&leader.0)
     }
 }
 
-impl Strategy for Position {
-    fn should_move(&self, followed: &Self, direction: &Direction) -> Convolution {
+impl Diagonal for Position {
+    fn diagonal(&self, leader: &Self, direction: &Direction) -> Convolution {
         match direction {
-            Direction::Up if self.x < followed.x => Convolution::UpRight,
-            Direction::Up if self.x > followed.x => Convolution::UpLeft,
-            Direction::Down if self.x < followed.x => Convolution::DownRight,
-            Direction::Down if self.x > followed.x => Convolution::DownLeft,
-            Direction::Left if self.y < followed.y => Convolution::DownLeft,
-            Direction::Left if self.y > followed.y => Convolution::UpLeft,
-            Direction::Right if self.y < followed.y => Convolution::DownRight,
-            Direction::Right if self.y > followed.y => Convolution::UpRight,
+            _ if (self.x + 1) == leader.x && (self.y - 2) == leader.y => Convolution::UpRight,
+            _ if (self.x + 2) == leader.x && (self.y - 1) == leader.y => Convolution::UpRight,
+            _ if (self.x + 2) == leader.x && (self.y - 2) == leader.y => Convolution::UpRight,
+            _ if (self.x - 1) == leader.x && (self.y - 2) == leader.y => Convolution::UpLeft,
+            _ if (self.x - 2) == leader.x && (self.y - 1) == leader.y => Convolution::UpLeft,
+            _ if (self.x - 2) == leader.x && (self.y - 2) == leader.y => Convolution::UpLeft,
+            _ if (self.x + 1) == leader.x && (self.y + 2) == leader.y => Convolution::DownRight,
+            _ if (self.x + 2) == leader.x && (self.y + 1) == leader.y => Convolution::DownRight,
+            _ if (self.x + 2) == leader.x && (self.y + 2) == leader.y => Convolution::DownRight,
+            _ if (self.x - 1) == leader.x && (self.y + 2) == leader.y => Convolution::DownLeft,
+            _ if (self.x - 2) == leader.x && (self.y + 1) == leader.y => Convolution::DownLeft,
+            _ if (self.x - 2) == leader.x && (self.y + 2) == leader.y => Convolution::DownLeft,
             _ => panic!("should not happen"),
         }
     }
 }
 
-impl Strategy for Knot {
-    fn should_move(&self, followed: &Self, direction: &Direction) -> Convolution {
-        self.0.should_move(&followed.0, direction)
+impl Diagonal for Knot {
+    fn diagonal(&self, followed: &Self, direction: &Direction) -> Convolution {
+        self.0.diagonal(&followed.0, direction)
     }
 }

@@ -21,11 +21,6 @@ pub struct Motion {
 #[derive(Debug)]
 pub struct Motions(pub Vec<Motion>);
 
-pub enum Axis {
-    Row,
-    Column,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Direction {
     Up,

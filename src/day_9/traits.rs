@@ -1,8 +1,4 @@
-use super::types::{Axis, Convolution, Direction};
-
-pub trait Aligned {
-    fn aligned(&self, related: &Self, axis: &Axis) -> bool;
-}
+use super::types::{Convolution, Direction};
 
 pub trait Next {
     fn next(&self, toward: &Convolution) -> Self;
@@ -27,6 +23,10 @@ where
     fn adjacent_positions(&self) -> Vec<Self>;
 }
 
-pub trait Strategy {
-    fn should_move(&self, followed: &Self, direction: &Direction) -> Convolution;
+pub trait Diagonal {
+    fn diagonal(&self, followed: &Self, direction: &Direction) -> Convolution;
+}
+
+pub trait TwoStepsAhead {
+    fn two_steps_ahead(&self, leader: &Self) -> Option<Direction>;
 }
