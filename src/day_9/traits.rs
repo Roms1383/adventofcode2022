@@ -20,15 +20,6 @@ pub trait Touching {
     fn touching(&self, related: &Self) -> bool;
 }
 
-impl<T> Touching for T
-where
-    T: Overlap + Adjacent,
-{
-    fn touching(&self, related: &Self) -> bool {
-        self.overlap(related) || self.adjacent(related)
-    }
-}
-
 pub trait AdjacentPositions {
     fn adjacent_positions(&self) -> Vec<Position>;
 }
