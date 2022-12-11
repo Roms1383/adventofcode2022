@@ -24,5 +24,7 @@ jobs:
           toolchain: stable
       - name: install Just
         uses: extractions/setup-just@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: day ${{ matrix.day }} part ${{ matrix.part }}
         run: just test ${{ matrix.day }} ${{ matrix.part }}
