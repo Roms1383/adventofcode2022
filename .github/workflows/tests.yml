@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  day_1:
+  days:
     runs-on: ubuntu-latest
     strategy:
       matrix:
