@@ -1,4 +1,4 @@
-use super::types::{Axis, Convolution, Direction, Position};
+use super::types::{Axis, Convolution, Direction};
 
 pub trait Aligned {
     fn aligned(&self, related: &Self, axis: &Axis) -> bool;
@@ -20,8 +20,11 @@ pub trait Touching {
     fn touching(&self, related: &Self) -> bool;
 }
 
-pub trait AdjacentPositions {
-    fn adjacent_positions(&self) -> Vec<Position>;
+pub trait AdjacentPositions
+where
+    Self: Next + Sized,
+{
+    fn adjacent_positions(&self) -> Vec<Self>;
 }
 
 pub trait Strategy {

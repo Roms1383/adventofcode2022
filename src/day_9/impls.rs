@@ -266,6 +266,24 @@ impl From<&str> for Motions {
     }
 }
 
+impl<T> AdjacentPositions for T
+where
+    T: Next + Sized,
+{
+    fn adjacent_positions(&self) -> Vec<Self> {
+        vec![
+            self.next(&Convolution::Up),
+            self.next(&Convolution::Down),
+            self.next(&Convolution::Left),
+            self.next(&Convolution::Right),
+            self.next(&Convolution::UpLeft),
+            self.next(&Convolution::UpRight),
+            self.next(&Convolution::DownLeft),
+            self.next(&Convolution::DownRight),
+        ]
+    }
+}
+
 impl<T> Touching for T
 where
     T: Overlap + Adjacent,
@@ -323,27 +341,6 @@ impl Overlap for Position {
 impl Overlap for Knot {
     fn overlap(&self, related: &Self) -> bool {
         self.0.overlap(&related.0)
-    }
-}
-
-impl AdjacentPositions for Position {
-    fn adjacent_positions(&self) -> Vec<Position> {
-        vec![
-            self.next(&Convolution::Up),
-            self.next(&Convolution::Down),
-            self.next(&Convolution::Left),
-            self.next(&Convolution::Right),
-            self.next(&Convolution::UpLeft),
-            self.next(&Convolution::UpRight),
-            self.next(&Convolution::DownLeft),
-            self.next(&Convolution::DownRight),
-        ]
-    }
-}
-
-impl AdjacentPositions for Knot {
-    fn adjacent_positions(&self) -> Vec<Position> {
-        self.0.adjacent_positions()
     }
 }
 
