@@ -19,8 +19,6 @@ impl From<Position> for Knot {
 impl<const LENGTH: usize> Knots<LENGTH> {
     #[allow(unused_assignments)]
     fn do_motion(&mut self, motion: &Motion) {
-        println!("{motion}");
-        let large = self.knots.len() > 2;
         for _ in 0..motion.steps {
             let knots = self.knots.as_mut();
             let mut leader: Knot;
@@ -42,34 +40,17 @@ impl<const LENGTH: usize> Knots<LENGTH> {
                 follower = knots.get(next).unwrap().clone();
                 let lead: &Convolution = &motion.direction.into();
                 projection = leader.0.clone().into();
-                if !large {
-                    println!("lead: {lead}");
-                }
-                if !large {
-                    println!("leader moved: {}", knots.get(current).unwrap());
-                }
                 if !follower.touching(&projection) {
                     let follow = follower.follow(&leader);
-                    if !large {
-                        println!("follow: {follow}");
-                    }
                     *knots.get_mut(next).unwrap() = follower.0.next(&follow).into();
-                    if !large {
-                        println!("follower moved: {}", knots.get(next).unwrap());
-                    }
                     if next == (count - 1) {
                         moved = Some(knots.get(next).unwrap().clone().0);
                     }
                 }
             }
             if let Some(ref moved) = moved {
-                println!("visited {}", moved.to_string().yellow());
                 self.record_tail_visited(moved);
             }
-            if large {
-                println!("after:\n{self}");
-            }
-            println!("\n");
         }
     }
     fn record_tail_visited(&mut self, at: &Position) {
