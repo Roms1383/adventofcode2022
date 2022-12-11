@@ -18,14 +18,6 @@ R 4
 D 1
 L 5
 R 2";
-    const LARGER_INPUT: &'static str = "R 5
-U 8
-L 8
-D 3
-R 17
-D 10
-L 25
-U 20";
 
     #[test]
     fn parse() {
@@ -55,26 +47,5 @@ U 20";
                 steps: 1
             }
         );
-    }
-
-    #[test]
-    fn duo() {
-        let motions = Motions::from(INPUT);
-        let mut knots: Knots<2> = Knots::default();
-        knots.do_motions(&motions);
-        assert_eq!(knots.visited.len(), 13);
-    }
-
-    #[test]
-    fn snake() {
-        let motions = Motions::from(INPUT);
-        let mut knots: Knots<10> = Knots::default();
-        knots.do_motions(&motions);
-        assert_eq!(knots.visited.len(), 1);
-
-        let motions = Motions::from(LARGER_INPUT);
-        let mut knots: Knots<10> = Knots::default();
-        knots.do_motions(&motions);
-        assert_eq!(knots.visited.len(), 36);
     }
 }

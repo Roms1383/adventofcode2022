@@ -20,6 +20,10 @@ impl<const LENGTH: usize> Knots<LENGTH> {
     #[allow(unused_assignments)]
     fn do_motion(&mut self, motion: &Motion) {
         println!("{motion}");
+        let large = self.knots.len() > 2;
+        if large {
+            println!("before:\n{self}");
+        }
         for _ in 0..motion.steps {
             let knots = self.knots.as_mut();
             let mut leader;
@@ -34,18 +38,26 @@ impl<const LENGTH: usize> Knots<LENGTH> {
                 follower = knots.get(next).unwrap().clone();
                 let lead: &Convolution = &motion.direction.into();
                 projection = leader.0.next(lead).into();
-                println!("lead: {lead}");
+                if !large {
+                    println!("lead: {lead}");
+                }
                 *knots.get_mut(current).unwrap() = projection.clone();
-                println!("leader moved: {}", knots.get(current).unwrap());
+                if !large {
+                    println!("leader moved: {}", knots.get(current).unwrap());
+                }
                 if !follower.touching(&projection) {
                     let follow = if follower.aligned(&projection, &motion.axis()) {
                         motion.direction.into()
                     } else {
                         follower.should_move(&projection, &motion.direction)
                     };
-                    println!("follow: {follow}");
+                    if !large {
+                        println!("follow: {follow}");
+                    }
                     *knots.get_mut(next).unwrap() = follower.0.next(&follow).into();
-                    println!("follower moved: {}", knots.get(next).unwrap());
+                    if !large {
+                        println!("follower moved: {}", knots.get(next).unwrap());
+                    }
                     if next == (count - 1) {
                         moved = Some(knots.get(next).unwrap().clone().0);
                     }
@@ -54,6 +66,9 @@ impl<const LENGTH: usize> Knots<LENGTH> {
             if let Some(ref moved) = moved {
                 println!("visited {}", moved.to_string().yellow());
                 self.record_tail_visited(moved);
+            }
+            if large {
+                println!("after:\n{self}");
             }
             println!("\n");
         }
@@ -143,8 +158,19 @@ impl std::fmt::Display for Knot {
 impl<const LENGTH: usize> std::fmt::Display for Knots<LENGTH> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut acc = "".to_string();
+        let len = self.knots.len() - 1;
         for (idx, knot) in self.knots.iter().enumerate() {
-            acc.push_str(format!("{} {knot}\n", idx + 1).as_str());
+            match (true, idx) {
+                (_, 0) => {
+                    acc.push_str(&format!("{} {knot}\n", "H".to_string().cyan()));
+                }
+                (_, idx) if idx == len => {
+                    acc.push_str(&format!("{} {knot}\n", "T".to_string().yellow()));
+                }
+                _ => {
+                    acc.push_str(&format!("{} {knot}\n", idx + 1));
+                }
+            }
         }
         write!(f, "{}", acc)
     }
