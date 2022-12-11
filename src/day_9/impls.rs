@@ -1,5 +1,5 @@
 use super::{
-    traits::{Adjacent, AdjacentPositions, Diagonal, Next, Overlap, Touching, TwoStepsAhead},
+    traits::{Adjacent, AdjacentPositions, Follow, Next, Overlap, Touching},
     types::{Convolution, Direction, Knot, Knots, Motion, Motions, Position},
 };
 use colored::Colorize;
@@ -49,11 +49,7 @@ impl<const LENGTH: usize> Knots<LENGTH> {
                     println!("leader moved: {}", knots.get(current).unwrap());
                 }
                 if !follower.touching(&projection) {
-                    let follow = if let Some(direction) = follower.two_steps_ahead(&leader) {
-                        direction.into()
-                    } else {
-                        follower.diagonal(&projection, &motion.direction)
-                    };
+                    let follow = follower.follow(&leader);
                     if !large {
                         println!("follow: {follow}");
                     }
@@ -350,27 +346,15 @@ impl Adjacent for Knot {
     }
 }
 
-impl TwoStepsAhead for Position {
-    fn two_steps_ahead(&self, leader: &Self) -> Option<Direction> {
+impl Follow for Position {
+    fn follow(&self, leader: &Self) -> Convolution {
         match true {
-            _ if self.y == leader.y && (self.x + 2) == leader.x => Some(Direction::Right),
-            _ if self.y == leader.y && (self.x - 2) == leader.x => Some(Direction::Left),
-            _ if self.x == leader.x && (self.y + 2) == leader.y => Some(Direction::Down),
-            _ if self.x == leader.x && (self.y - 2) == leader.y => Some(Direction::Up),
-            _ => None,
-        }
-    }
-}
-
-impl TwoStepsAhead for Knot {
-    fn two_steps_ahead(&self, leader: &Self) -> Option<Direction> {
-        self.0.two_steps_ahead(&leader.0)
-    }
-}
-
-impl Diagonal for Position {
-    fn diagonal(&self, leader: &Self, direction: &Direction) -> Convolution {
-        match direction {
+            // two steps ahead
+            _ if self.y == leader.y && (self.x + 2) == leader.x => Convolution::Right,
+            _ if self.y == leader.y && (self.x - 2) == leader.x => Convolution::Left,
+            _ if self.x == leader.x && (self.y + 2) == leader.y => Convolution::Down,
+            _ if self.x == leader.x && (self.y - 2) == leader.y => Convolution::Up,
+            // diagonal
             _ if (self.x + 1) == leader.x && (self.y - 2) == leader.y => Convolution::UpRight,
             _ if (self.x + 2) == leader.x && (self.y - 1) == leader.y => Convolution::UpRight,
             _ if (self.x + 2) == leader.x && (self.y - 2) == leader.y => Convolution::UpRight,
@@ -388,8 +372,8 @@ impl Diagonal for Position {
     }
 }
 
-impl Diagonal for Knot {
-    fn diagonal(&self, followed: &Self, direction: &Direction) -> Convolution {
-        self.0.diagonal(&followed.0, direction)
+impl Follow for Knot {
+    fn follow(&self, leader: &Self) -> Convolution {
+        self.0.follow(&leader.0)
     }
 }

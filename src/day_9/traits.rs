@@ -1,4 +1,4 @@
-use super::types::{Convolution, Direction};
+use super::types::Convolution;
 
 pub trait Next {
     fn next(&self, toward: &Convolution) -> Self;
@@ -23,10 +23,6 @@ where
     fn adjacent_positions(&self) -> Vec<Self>;
 }
 
-pub trait Diagonal {
-    fn diagonal(&self, followed: &Self, direction: &Direction) -> Convolution;
-}
-
-pub trait TwoStepsAhead {
-    fn two_steps_ahead(&self, leader: &Self) -> Option<Direction>;
+pub trait Follow {
+    fn follow(&self, leader: &Self) -> Convolution;
 }
