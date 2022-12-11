@@ -65,16 +65,16 @@ U 20";
         assert_eq!(manager.visited.len(), 13);
     }
 
-    // #[test]
-    // fn snake() {
-    //     let motions = Motions::from(INPUT);
-    //     let mut manager: Knots<2> = Knots::default();
-    //     manager.do_motions(&motions);
-    //     assert_eq!(manager.visited.len(), 1);
+    #[test]
+    fn snake() {
+        let motions = Motions::from(INPUT);
+        let mut manager: Knots<10> = Knots::default();
+        manager.do_motions(&motions);
+        assert_eq!(manager.visited.len(), 1);
 
-    //     let motions = Motions::from(LARGER_INPUT);
-    //     let mut manager: Knots<10> = Knots::default();
-    //     manager.do_motions(&motions);
-    //     assert_eq!(manager.visited.len(), 36);
-    // }
+        let motions = Motions::from(LARGER_INPUT);
+        let mut manager: Knots<10> = Knots::default();
+        manager.do_motions(&motions);
+        assert_eq!(manager.visited.len(), 36);
+    }
 }

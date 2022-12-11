@@ -19,30 +19,43 @@ impl From<Position> for Knot {
 impl<const LENGTH: usize> Knots<LENGTH> {
     #[allow(unused_assignments)]
     fn do_motion(&mut self, motion: &Motion) {
+        println!("{motion}");
         for _ in 0..motion.steps {
             let knots = self.knots.as_mut();
             let mut leader;
             let mut follower;
-            let mut moved = None;
+            let mut projection: Knot;
             let mut next;
-            for current in 0..(knots.len() - 1) {
+            let mut moved = None;
+            let count = knots.len();
+            for current in 0..(count - 1) {
                 next = current + 1;
                 leader = knots.get(current).unwrap().clone();
                 follower = knots.get(next).unwrap().clone();
-                *knots.get_mut(current).unwrap() = leader.0.next(&motion.direction.into()).into();
-                if !follower.touching(&leader) {
-                    let convolution = if follower.aligned(&leader, &motion.axis()) {
+                let lead: &Convolution = &motion.direction.into();
+                projection = leader.0.next(lead).into();
+                println!("lead: {lead}");
+                *knots.get_mut(current).unwrap() = projection.clone();
+                println!("leader moved: {}", knots.get(current).unwrap());
+                if !follower.touching(&projection) {
+                    let follow = if follower.aligned(&projection, &motion.axis()) {
                         motion.direction.into()
                     } else {
-                        follower.should_move(&leader, &motion.direction)
+                        follower.should_move(&projection, &motion.direction)
                     };
-                    *knots.get_mut(next).unwrap() = follower.0.next(&convolution).into();
-                    moved = Some(follower.0.clone());
+                    println!("follow: {follow}");
+                    *knots.get_mut(next).unwrap() = follower.0.next(&follow).into();
+                    println!("follower moved: {}", knots.get(next).unwrap());
+                    if next == (count - 1) {
+                        moved = Some(knots.get(next).unwrap().clone().0);
+                    }
                 }
             }
-            if let Some(moved) = moved {
-                self.record_tail_visited(&moved);
+            if let Some(ref moved) = moved {
+                println!("visited {}", moved.to_string().yellow());
+                self.record_tail_visited(moved);
             }
+            println!("\n");
         }
     }
     fn record_tail_visited(&mut self, at: &Position) {
