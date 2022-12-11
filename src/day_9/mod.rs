@@ -60,21 +60,21 @@ U 20";
     #[test]
     fn duo() {
         let motions = Motions::from(INPUT);
-        let mut manager: Knots<2> = Knots::default();
-        manager.do_motions(&motions);
-        assert_eq!(manager.visited.len(), 13);
+        let mut knots: Knots<2> = Knots::default();
+        knots.do_motions(&motions);
+        assert_eq!(knots.visited.len(), 13);
     }
 
     #[test]
     fn snake() {
         let motions = Motions::from(INPUT);
-        let mut manager: Knots<10> = Knots::default();
-        manager.do_motions(&motions);
-        assert_eq!(manager.visited.len(), 1);
+        let mut knots: Knots<10> = Knots::default();
+        knots.do_motions(&motions);
+        assert_eq!(knots.visited.len(), 1);
 
         let motions = Motions::from(LARGER_INPUT);
-        let mut manager: Knots<10> = Knots::default();
-        manager.do_motions(&motions);
-        assert_eq!(manager.visited.len(), 36);
+        let mut knots: Knots<10> = Knots::default();
+        knots.do_motions(&motions);
+        assert_eq!(knots.visited.len(), 36);
     }
 }
