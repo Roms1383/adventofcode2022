@@ -7,9 +7,14 @@ pub struct Myself;
 impl Myself {
     pub fn observe(monkeys: &mut Monkeys, rounds: usize, relief: bool) {
         for round in 1..=rounds {
+            let divisibles: usize = if relief {
+                3
+            } else {
+                monkeys.0.iter().map(|x| x.test.divisible).product()
+            };
             for turn in 0..monkeys.0.len() {
                 let thrower = monkeys.0.get_mut(turn).expect("thrower");
-                let outcomes = thrower.turn(relief);
+                let outcomes = thrower.turn(relief, divisibles);
                 drop(thrower);
                 for (item, decision) in outcomes {
                     monkeys.throw(item, decision.recipient);
@@ -29,13 +34,11 @@ pub struct Monkey {
 }
 
 impl Monkey {
-    fn turn(&mut self, relief: bool) -> Vec<(Item, Decision)> {
+    fn turn(&mut self, relief: bool, divisibles: usize) -> Vec<(Item, Decision)> {
         let mut decisions = vec![];
         while let Some(mut item) = self.starting_items.0.pop_front() {
             self.inspect(&mut item);
-            if relief {
-                item.relief();
-            }
+            item.relief(relief, divisibles);
             decisions.push((item.to_owned(), self.test(&item)));
         }
         decisions
@@ -66,8 +69,12 @@ impl Monkeys {
 pub struct Item(usize);
 
 impl Item {
-    fn relief(&mut self) {
-        self.0 = self.0 / 3;
+    fn relief(&mut self, relief: bool, divisibles: usize) {
+        if relief {
+            self.0 = self.0 / divisibles;
+        } else {
+            self.0 = self.0 % divisibles;
+        }
     }
 }
 
