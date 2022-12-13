@@ -1,27 +1,78 @@
 #![allow(dead_code, unused_variables)]
 
+use std::collections::VecDeque;
+
+pub struct Myself;
+
+impl Myself {
+    pub fn observe(monkeys: &mut Monkeys, rounds: usize, relief: bool) {
+        for round in 1..=rounds {
+            for turn in 0..monkeys.0.len() {
+                let thrower = monkeys.0.get_mut(turn).expect("thrower");
+                let outcomes = thrower.turn(relief);
+                drop(thrower);
+                for (item, decision) in outcomes {
+                    monkeys.throw(item, decision.recipient);
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Monkey {
     idx: usize,
     starting_items: StartingItems,
     operation: Operation,
     test: Test,
+    pub inspected: usize,
+}
+
+impl Monkey {
+    fn turn(&mut self, relief: bool) -> Vec<(Item, Decision)> {
+        let mut decisions = vec![];
+        while let Some(mut item) = self.starting_items.0.pop_front() {
+            self.inspect(&mut item);
+            if relief {
+                item.relief();
+            }
+            decisions.push((item.to_owned(), self.test(&item)));
+        }
+        decisions
+    }
+    fn inspect(&mut self, item: &mut Item) {
+        self.operation.perform(item);
+        self.inspected += 1;
+    }
+    fn test(&self, item: &Item) -> Decision {
+        if item.0 % self.test.divisible == 0 {
+            return self.test.if_true.clone();
+        }
+        self.test.if_false.clone()
+    }
 }
 
 #[derive(Debug)]
-pub struct Monkeys(Vec<Monkey>);
+pub struct Monkeys(pub Vec<Monkey>);
 
-#[derive(Debug)]
+impl Monkeys {
+    fn throw(&mut self, item: Item, to: usize) {
+        let catcher = self.0.get_mut(to).expect("catcher");
+        catcher.starting_items.0.push_back(item);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Item(usize);
 
-#[derive(Debug)]
-pub struct Worry {
-    level: usize,
-    item: Item,
+impl Item {
+    fn relief(&mut self) {
+        self.0 = self.0 / 3;
+    }
 }
 
 #[derive(Debug)]
-pub struct StartingItems(Vec<Item>);
+pub struct StartingItems(VecDeque<Item>);
 
 #[derive(Debug)]
 pub enum Operator {
@@ -41,7 +92,20 @@ pub struct Operation {
     operand: Operand,
 }
 
-#[derive(Debug)]
+impl Operation {
+    fn perform(&self, item: &mut Item) {
+        let operand = match self.operand {
+            Operand::Digit(digit) => digit,
+            Operand::Old => item.0,
+        };
+        match self.operator {
+            Operator::Plus => item.0 = item.0 + operand,
+            Operator::Times => item.0 = item.0 * operand,
+        };
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Decision {
     recipient: usize,
 }
@@ -51,12 +115,6 @@ pub struct Test {
     divisible: usize,
     if_true: Decision,
     if_false: Decision,
-}
-
-impl Monkey {
-    fn inspect(&self, worry: &Worry) {
-        todo!()
-    }
 }
 
 impl From<&str> for StartingItems {
@@ -130,7 +188,6 @@ impl From<&str> for Test {
 
 impl From<Vec<&str>> for Monkey {
     fn from(lines: Vec<&str>) -> Self {
-        println!("{:#?}\n", lines);
         assert_eq!(lines.len(), 6);
         let line = lines.get(0).expect("monkey");
         let idx = line[line.rfind(' ').unwrap() + 1..line.len() - 1]
@@ -146,6 +203,7 @@ impl From<Vec<&str>> for Monkey {
             starting_items,
             operation,
             test,
+            inspected: 0,
         }
     }
 }
