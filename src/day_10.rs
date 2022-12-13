@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{collections::VecDeque, fmt::Display};
+use std::collections::VecDeque;
 
 pub trait Cadence: Sized {
     fn start(&mut self);
@@ -71,15 +71,6 @@ impl Draw for CRT {
     fn draw(&mut self, cpu: &CPU, cycle: &Cycle) {
         let sprite: Sprite = (cycle, cpu).into();
         self.0[sprite.column()][cycle.pixel_row_position()] = sprite.produce();
-        println!(
-            "{} at cycle {:#?}",
-            self.0[sprite.column()]
-                .iter()
-                .map(|x| x.0.to_string())
-                .collect::<Vec<String>>()
-                .join(", "),
-            cycle
-        );
     }
 }
 
@@ -158,7 +149,7 @@ impl Clock {
     }
 
     pub fn execute(&mut self) {
-        for tick in 1..=220 {
+        for tick in 1..=240 {
             self.cycle = Cycle(tick);
             self.start();
             self.during();

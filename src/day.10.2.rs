@@ -10,7 +10,7 @@ fn main() {
 
     let mut clock = Clock::new(instructions);
     clock.execute();
-    println!("{}", clock.total_signals_strength());
+    println!("{}", clock.draw_picture());
 }
 
 #[cfg(test)]
