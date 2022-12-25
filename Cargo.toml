@@ -91,11 +91,19 @@ path = "src/day.11.1.rs"
 name = "day-11-2"
 path = "src/day.11.2.rs"
 
+[[bin]]
+name = "day-25-1"
+path = "src/day.25.1.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.66"
 colored = "2.0.0"
+itertools = "0.10.5"
 ndarray = "0.15.6"
 num-traits = "0.2"
 regex = "1.7.0"
+
+[dev-dependencies]
+test-case = "2.2.2"
